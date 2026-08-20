@@ -10,6 +10,8 @@ import type {
   ImportErgebnis,
   KleidungExport,
   PersonFormData,
+  PersonImportBericht,
+  PersonImportModus,
   PersonMitAusstattung,
   ScanEreignis,
   ScanErgebnis,
@@ -187,6 +189,36 @@ export const updatePerson = async (id: number, data: PersonFormData): Promise<Pe
 
 export const deletePerson = async (id: number): Promise<void> => {
   await api.delete(`/kleidung/personen/${id}`);
+};
+
+/**
+ * Der Import läuft in zwei Stufen über denselben Endpunkt: erst prüfen,
+ * dann übernehmen. Beide Male schickt die Oberfläche denselben Dateiinhalt,
+ * damit die Vorschau und das, was geschrieben wird, aus derselben Quelle
+ * stammen.
+ */
+export const pruefePersonenImport = async (
+  csv: string,
+  modus: PersonImportModus,
+): Promise<PersonImportBericht> => {
+  const response = await api.post<PersonImportBericht>('/kleidung/personen/import', {
+    csv,
+    modus,
+    uebernehmen: false,
+  });
+  return response.data;
+};
+
+export const uebernehmePersonenImport = async (
+  csv: string,
+  modus: PersonImportModus,
+): Promise<PersonImportBericht> => {
+  const response = await api.post<PersonImportBericht>('/kleidung/personen/import', {
+    csv,
+    modus,
+    uebernehmen: true,
+  });
+  return response.data;
 };
 
 // --- Kleidungsstücke ---

@@ -8,12 +8,13 @@ import styles from '../Kleidung.module.css';
 interface Props {
   personen: PersonMitAusstattung[];
   onNeu: () => void;
+  onImport: () => void;
   onBearbeiten: (person: PersonMitAusstattung) => void;
   onTeil: (id: number) => void;
   onAenderung: () => Promise<void>;
 }
 
-export const PersonenTab: React.FC<Props> = ({ personen, onNeu, onBearbeiten, onTeil, onAenderung }) => {
+export const PersonenTab: React.FC<Props> = ({ personen, onNeu, onImport, onBearbeiten, onTeil, onAenderung }) => {
   const [gewaehlt, setGewaehlt] = useState<number | null>(null);
   const [nurAgt, setNurAgt] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -53,6 +54,14 @@ export const PersonenTab: React.FC<Props> = ({ personen, onNeu, onBearbeiten, on
             >
               Atemschutz <span className={styles.num}>{personen.filter(p => p.atemschutz).length}</span>
             </button>
+            <button
+              className={`${styles.chip} ${styles.chipKlein}`}
+              onClick={onImport}
+              type="button"
+              title="Personen aus einer CSV-Datei übernehmen"
+            >
+              <i className="fas fa-file-csv" aria-hidden="true"></i> CSV
+            </button>
             <button className={styles.btnPrimary} onClick={onNeu} type="button">
               <i className="fas fa-plus" aria-hidden="true"></i> Person
             </button>
@@ -66,6 +75,9 @@ export const PersonenTab: React.FC<Props> = ({ personen, onNeu, onBearbeiten, on
             <i className="fas fa-users" aria-hidden="true"></i>
             <p>Noch keine Personen angelegt.</p>
             <button className={styles.btnPrimary} onClick={onNeu} type="button">Erste Person anlegen</button>
+            <button className={`${styles.chip} ${styles.chipKlein}`} onClick={onImport} type="button">
+              <i className="fas fa-file-csv" aria-hidden="true"></i> Oder aus CSV übernehmen
+            </button>
           </div>
         ) : (
           <div className={styles.tableWrapper}>

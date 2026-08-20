@@ -13,7 +13,7 @@ aber genauso für die übrige Einsatzkleidung.
 | **Übersicht** | Was ansteht: Teile an der Waschgrenze, fällige Prüfungen, offene Reparaturen, laufende Wäsche und die letzten Vorgänge |
 | **Kleidung** | Alle Teile als Kacheln mit Waschzähler-Ampel, Filter nach Typ und Status, Volltextsuche über Nummer, Typ und Träger |
 | **Scannen** | Nummerncode (`XXXX-XX/XX`) und Matrixcode – wahlweise mit der Kamera, getippt oder über ein gekoppeltes Handy |
-| **Wäsche** | Chargen: Teile einsammeln, abgeben, zurückmelden. Erst die Rückmeldung zählt die Waschzähler hoch |
+| **Personen** | Einsatzkräfte mit ihrer Ausstattung, Atemschutz-Kennzeichnung und dem, was in der Sollausstattung fehlt. Anlegen einzeln oder als CSV-Import |
 | **Personen** | Einsatzkräfte mit ihrer Ausstattung, Atemschutz-Kennzeichnung und dem, was in der Sollausstattung fehlt |
 | **Auswertung** | Wäschen pro Monat, nach Anlass, Belastung je Teiletyp und der komplette Verlauf |
 
@@ -75,9 +75,83 @@ Danach in dieser Reihenfolge:
 1. **Kleidung → Typen**: Höchstzahl der Wäschen, Warnschwelle und Prüfintervall
    an die eigenen Vorgaben anpassen.
 2. **Personen**: Einsatzkräfte anlegen und bei den Atemschutzgeräteträgern den
-   Haken setzen.
+   Haken setzen. Wer schon eine Mitgliederliste hat, nimmt den CSV-Import –
+   siehe [Personen aus einer CSV übernehmen](#personen-aus-einer-csv-übernehmen).
 3. **Kleidung → Teil anlegen**: Nummer, Typ, Größe und Träger erfassen. Beim
    Umstieg von der Papierliste den bisherigen Zählerstand gleich mit eintragen.
+
+## Personen aus einer CSV übernehmen
+
+Wer schon eine Mitgliederliste hat, muss die Namen nicht abtippen:
+**Personen → CSV** liest eine Tabelle ein. Der Knopf sitzt neben „Person".
+
+Der Import läuft in zwei Schritten. Nach dem Auswählen der Datei zeigt das
+Add-on erst eine **Vorschau**: Zeile für Zeile, was passieren würde – und
+warum. Geschrieben wird nichts, bevor unten „… übernehmen" gedrückt ist.
+
+### Wie die Datei aussehen muss
+
+Die erste Zeile ist die Kopfzeile. Nur der Name ist Pflicht, alles andere
+darf fehlen:
+
+| Spalte | Auch erkannt als | Inhalt |
+| --- | --- | --- |
+| `Name` | Person, Einsatzkraft, Mitglied, Kamerad | „Nachname, Vorname" |
+| `Nachname` + `Vorname` | Familienname, Zuname / Rufname | Ersatz für `Name` – wird zu „Nachname, Vorname" zusammengesetzt |
+| `Atemschutz` | AGT, Atemschutzgeräteträger | ja/nein, x, 1/0, wahr/falsch |
+| `Tauglich bis` | Tauglichkeit, G26 | `2027-03`, `03/2027`, `15.03.2027` |
+| `Status` | aktiv | aktiv/inaktiv, ja/nein |
+| `Notiz` | Bemerkung, Hinweis, Kommentar | freier Text, höchstens 300 Zeichen |
+
+Gross- und Kleinschreibung, Leerzeichen und Unterstriche in der Kopfzeile
+sind egal: `Tauglich bis`, `tauglich_bis` und `TAUGLICHBIS` sind dieselbe
+Spalte.
+
+Über **Muster herunterladen** im Dialog gibt es eine Beispieldatei mit den
+richtigen Spalten zum Ausfüllen.
+
+Um Trenner und Kodierung muss sich niemand kümmern:
+
+- **Trenner**: Semikolon, Komma, Tabulator oder senkrechter Strich – das
+  Add-on erkennt ihn an der Kopfzeile. Das deutsche Excel schreibt Semikolon.
+- **Kodierung**: UTF-8 und Windows-1252. Excel schreibt je nach Einstellung
+  das eine oder das andere; die Umlaute kommen in beiden Fällen richtig an.
+- **Anführungszeichen**: Felder in `"…"` dürfen Trenner und Zeilenumbrüche
+  enthalten, ein `""` darin ist ein echtes Anführungszeichen.
+
+### Wenn der Name schon angelegt ist
+
+Verglichen wird über den Namen, Gross- und Kleinschreibung egal. Zwei Wege
+stehen zur Wahl:
+
+- **Überspringen** – der bestehende Eintrag bleibt, wie er ist. Das ist die
+  Voreinstellung und der richtige Weg, um eine Liste nachzuziehen, in der ein
+  paar Neue dazugekommen sind.
+- **Aktualisieren** – die Felder aus der Datei werden übernommen.
+
+Auch beim Aktualisieren gilt: **Geändert wird nur, was in der Datei steht.**
+Eine Liste ohne Notiz-Spalte lässt bestehende Notizen unangetastet. Ausgegebene
+Kleidungsstücke, Waschzähler und die Historie fasst der Import ohnehin nie an –
+er legt Personen an und ändert deren Stammdaten, mehr nicht.
+
+### Was der Import ablehnt
+
+Fehlerhafte Zeilen werden übersprungen, nicht der ganze Import. In der Vorschau
+stehen sie mit Zeilennummer und Grund:
+
+- Name fehlt oder ist kürzer als zwei Zeichen
+- derselbe Name steht in der Datei mehrfach – die spätere Zeile fällt raus
+- ein Wert ist nicht zu lesen, etwa `vielleicht` in der Atemschutz-Spalte oder
+  `irgendwann` bei der Tauglichkeit
+
+Nur wenn die Datei als Ganzes nicht taugt – keine Namensspalte, leer, grösser
+als 2 MB – bricht der Import ab, bevor er anfängt.
+
+Zwei Feinheiten am Rande: Eine **leere Zelle in der Atemschutz-Spalte** gilt als
+„nein" – so lassen sich Listen einlesen, in denen nur die Träger ein Kreuz
+haben. Eine **leere Zelle in der Status-Spalte** bedeutet dagegen „nichts
+gesagt" und legt niemanden still. Und wie im Personendialog gilt: Ohne
+Atemschutz wird die Tauglichkeit verworfen, auch wenn eine in der Datei steht.
 
 ## Teiletypen, Waschgrenze und Ampel
 

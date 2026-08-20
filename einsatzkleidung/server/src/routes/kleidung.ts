@@ -34,6 +34,12 @@ import {
   normalisiereNummer,
   pruefungFaellig,
 } from '../domain/kleidung';
+import {
+  aktualisierePerson,
+  analysiereImport,
+  neuePersonAus,
+} from '../domain/personenImport';
+import type { ImportModus } from '../domain/personenImport';
 
 const router = Router();
 const DATA_PATH = DATA_FILE;
@@ -402,6 +408,68 @@ router.delete('/personen/:id', [param('id').isInt({ min: 1 }), handleValidation]
     res.json({ message: 'Person gelöscht' });
   } catch (err) {
     serverFehler(res, err, 'beim Löschen der Person');
+  }
+});
+
+/**
+ * Personen aus einer CSV übernehmen.
+ *
+ * Zwei Stufen über denselben Endpunkt: ohne `uebernehmen` wird nur geprüft und
+ * der Befund zurückgegeben, damit die Oberfläche eine Vorschau zeigen kann.
+ * Mit `uebernehmen` läuft die Analyse noch einmal – innerhalb der Sperre und
+ * gegen den dann gültigen Bestand. Sonst schriebe eine Vorschau von vorhin
+ * gegen Personen, die inzwischen jemand anders angelegt hat.
+ */
+router.post('/personen/import', [
+  body('csv').isString().withMessage('Es wird der Inhalt einer CSV-Datei erwartet.')
+    .bail()
+    .isLength({ min: 1, max: 2_000_000 }).withMessage('Die Datei ist leer oder grösser als 2 MB.'),
+  body('modus').optional().isIn(['ueberspringen', 'aktualisieren']).withMessage('Unbekannter Modus'),
+  body('uebernehmen').optional().isBoolean(),
+  handleValidation,
+], async (req: Request, res: Response) => {
+  try {
+    const csv = req.body.csv as string;
+    const modus: ImportModus = req.body.modus === 'aktualisieren' ? 'aktualisieren' : 'ueberspringen';
+    const uebernehmen = req.body.uebernehmen === true || req.body.uebernehmen === 'true';
+
+    if (!uebernehmen) {
+      const data = await loadData();
+      const bericht = analysiereImport(csv, data.personen, modus);
+      if (bericht.problem) return res.status(400).json({ error: bericht.problem });
+      return res.json({ ...bericht, uebernommen: false });
+    }
+
+    const ergebnis = await withFileLock(DATA_PATH, async () => {
+      const data = await loadData();
+      const bericht = analysiereImport(csv, data.personen, modus);
+      if (bericht.problem) throw fehler(400, bericht.problem);
+
+      if (bericht.neu === 0 && bericht.aktualisiert === 0) {
+        return { ...bericht, uebernommen: false };
+      }
+
+      for (const zeile of bericht.zeilen) {
+        if (!zeile.werte) continue;
+
+        if (zeile.befund === 'neu') {
+          data.personen.push(neuePersonAus(zeile.werte, nextId(data.personen)));
+          continue;
+        }
+
+        if (zeile.befund === 'aktualisiert' && zeile.personId !== null) {
+          const index = data.personen.findIndex(p => p.id === zeile.personId);
+          if (index !== -1) data.personen[index] = aktualisierePerson(data.personen[index], zeile.werte);
+        }
+      }
+
+      await saveData(data);
+      return { ...bericht, uebernommen: true };
+    });
+
+    res.json(ergebnis);
+  } catch (err) {
+    serverFehler(res, err, 'beim Import der Personen');
   }
 });
 

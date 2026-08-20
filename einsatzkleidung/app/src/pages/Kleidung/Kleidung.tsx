@@ -12,6 +12,7 @@ import { AuswertungTab } from './tabs/AuswertungTab';
 import { TeilDialog } from './dialoge/TeilDialog';
 import { TeilDetail } from './dialoge/TeilDetail';
 import { PersonDialog } from './dialoge/PersonDialog';
+import { PersonenImportDialog } from './dialoge/PersonenImportDialog';
 import { TypenDialog } from './dialoge/TypenDialog';
 import { ChargeDialog } from './dialoge/ChargeDialog';
 import styles from './Kleidung.module.css';
@@ -40,6 +41,7 @@ export const Kleidung: React.FC = () => {
   const [teilDialog, setTeilDialog] = useState<{ teil: TeilMitDetails | null; nummer?: string } | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [personDialog, setPersonDialog] = useState<{ person: PersonMitAusstattung | null } | null>(null);
+  const [importOffen, setImportOffen] = useState(false);
   const [typenOffen, setTypenOffen] = useState(false);
   const [chargeDialog, setChargeDialog] = useState<{ charge: ChargeMitTeilen | null } | null>(null);
 
@@ -134,6 +136,7 @@ export const Kleidung: React.FC = () => {
         <PersonenTab
           personen={daten.personen}
           onNeu={() => setPersonDialog({ person: null })}
+          onImport={() => setImportOffen(true)}
           onBearbeiten={person => setPersonDialog({ person })}
           onTeil={setDetailId}
           onAenderung={daten.neuLaden}
@@ -178,6 +181,13 @@ export const Kleidung: React.FC = () => {
             setPersonDialog(null);
             await daten.neuLaden();
           }}
+        />
+      )}
+
+      {importOffen && (
+        <PersonenImportDialog
+          onClose={() => setImportOffen(false)}
+          onUebernommen={daten.neuLaden}
         />
       )}
 

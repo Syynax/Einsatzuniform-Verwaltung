@@ -17,7 +17,7 @@ Läuft als Add-on in Home Assistant und erscheint als eigener Punkt
 | **Kleidung** | Alle Teile als Kacheln mit Waschzähler-Ampel, Filter nach Typ und Status, Suche über Nummer, Typ und Träger |
 | **Scannen** | Nummerncode `XXXX-XX/XX` und Matrixcode – mit der Kamera, getippt oder über ein gekoppeltes Handy |
 | **Wäsche** | Chargen: einsammeln, abgeben, zurückmelden. Erst die Rückmeldung zählt die Waschzähler hoch |
-| **Personen** | Einsatzkräfte mit Ausstattung, Atemschutz-Kennzeichnung und dem, was in der Sollausstattung fehlt |
+| **Personen** | Einsatzkräfte mit Ausstattung, Atemschutz-Kennzeichnung und dem, was in der Sollausstattung fehlt. Anlegen einzeln oder als CSV-Import |
 | **Auswertung** | Wäschen pro Monat, nach Anlass, Belastung je Teiletyp, kompletter Verlauf |
 
 Dazu:

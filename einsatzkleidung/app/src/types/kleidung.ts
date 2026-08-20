@@ -246,3 +246,43 @@ export interface ImportErgebnis {
   personen: number;
   vorgaenge: number;
 }
+
+// --- Personenimport aus CSV ---
+
+export type PersonImportModus = 'ueberspringen' | 'aktualisieren';
+
+export type PersonImportBefund = 'neu' | 'aktualisiert' | 'unveraendert' | 'uebersprungen' | 'fehler';
+
+/** Nur die Felder, die die Datei mitbringt. */
+export interface PersonImportWerte {
+  name: string;
+  atemschutz?: boolean;
+  tauglichBis?: string | null;
+  aktiv?: boolean;
+  notiz?: string | null;
+}
+
+export interface PersonImportZeile {
+  zeile: number;
+  name: string;
+  befund: PersonImportBefund;
+  meldung: string | null;
+  personId: number | null;
+  werte: PersonImportWerte | null;
+}
+
+export interface PersonImportBericht {
+  problem: string | null;
+  trenner: string;
+  spalten: string[];
+  /** Feld der Person -> Spaltenname aus der Datei. */
+  zuordnung: Record<string, string>;
+  zeilen: PersonImportZeile[];
+  neu: number;
+  aktualisiert: number;
+  unveraendert: number;
+  uebersprungen: number;
+  fehler: number;
+  /** Falsch, solange nur geprüft wurde. */
+  uebernommen: boolean;
+}
