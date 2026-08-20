@@ -1,0 +1,51 @@
+name: Einsatzkleidung
+version: "1.0.0"
+slug: einsatzkleidung
+description: Einsatzkleidung, Waschzyklen und Prüffristen für die Feuerwehr
+url: https://github.com/Syynax/getraenkeverwaltung/tree/main/einsatzkleidung
+# armhf/i386 fehlen bewusst: für diese Architekturen gibt es kein
+# offizielles Node-Image für die Build-Stage.
+arch:
+  - aarch64
+  - amd64
+  - armv7
+init: false
+ingress: true
+ingress_port: 8098
+panel_icon: mdi:tshirt-crew
+panel_title: Einsatzkleidung
+ports:
+  8098/tcp: null
+ports_description:
+  8098/tcp: >-
+    Direktzugriff ohne Ingress. Nur nötig, wenn der Scanner im Ingress-Frame
+    keine Kamera bekommt (siehe Doku).
+homeassistant_api: false
+hassio_api: false
+options:
+  titel: Einsatzkleidung
+  untertitel: Persönliche Schutzausrüstung, Wäsche & Prüfung
+  anmeldung: immer
+  sitzungsdauer_tage: 30
+  benutzer:
+    - name: admin
+      passwort: bitte-aendern
+  automatische_sicherung: true
+  sicherungen_behalten: 14
+  log_level: info
+schema:
+  titel: str
+  untertitel: str
+  # immer            = Anmeldung auch im Ingress-Panel
+  # nur_direktzugriff = im Ingress reicht der Home-Assistant-Login,
+  #                     über Port 8098 wird angemeldet
+  # aus              = keine Anmeldung
+  anmeldung: list(immer|nur_direktzugriff|aus)
+  sitzungsdauer_tage: int(1,365)
+  benutzer:
+    - name: str
+      passwort: password
+  # Täglich eine Kopie der Daten in /data/sicherungen ablegen.
+  automatische_sicherung: bool
+  sicherungen_behalten: int(1,365)
+  log_level: list(trace|debug|info|notice|warning|error|fatal)

@@ -1,0 +1,248 @@
+/**
+ * Gegenstück zu den Servertypen (server/src/types/kleidung.ts). Bewusst als
+ * eigene Datei statt eines gemeinsamen Pakets – zwei kleine Projekte, ein
+ * Build-Schritt weniger.
+ */
+
+export type TeileKategorie = 'einsatzkleidung' | 'atemschutz' | 'ausruestung';
+export type TeilStatus = 'dienst' | 'waesche' | 'reparatur' | 'ausgesondert';
+export type WaescheAnlass = 'atemschutz' | 'uebung' | 'verschmutzung' | 'turnus';
+export type ChargeStatus = 'erfasst' | 'unterwegs' | 'abgeschlossen';
+export type Ampel = 'ok' | 'warnung' | 'grenze';
+
+export type VorgangTyp =
+  | 'anlage'
+  | 'waesche'
+  | 'reparatur'
+  | 'pruefung'
+  | 'ausgabe'
+  | 'ruecknahme'
+  | 'aussonderung'
+  | 'korrektur';
+
+export interface Teiletyp {
+  id: number;
+  name: string;
+  kategorie: TeileKategorie;
+  waschbar: boolean;
+  waschgrenze: number | null;
+  warnschwelle: number | null;
+  pruefIntervallMonate: number | null;
+  aktiv: boolean;
+  /** Wie viele Teile diesen Typ nutzen – nur lesend vom Server. */
+  anzahlTeile?: number;
+}
+
+export interface TeiletypFormData {
+  name: string;
+  kategorie: TeileKategorie;
+  waschbar: boolean;
+  waschgrenze: number | null;
+  warnschwelle: number | null;
+  pruefIntervallMonate: number | null;
+}
+
+export interface Person {
+  id: number;
+  name: string;
+  atemschutz: boolean;
+  tauglichBis: string | null;
+  aktiv: boolean;
+  notiz: string | null;
+}
+
+export interface PersonFormData {
+  name: string;
+  atemschutz: boolean;
+  tauglichBis: string | null;
+  notiz: string | null;
+}
+
+export interface Kleidungsstueck {
+  id: number;
+  nummer: string;
+  matrixCode: string | null;
+  typId: number;
+  groesse: string | null;
+  hersteller: string | null;
+  beschaffung: string | null;
+  personId: number | null;
+  standort: string | null;
+  status: TeilStatus;
+  waschzaehler: number;
+  letzteWaesche: string | null;
+  letztePruefung: string | null;
+  naechstePruefung: string | null;
+  chargeId: number | null;
+  notiz: string | null;
+  angelegt: string;
+}
+
+export interface TeilMitDetails extends Kleidungsstueck {
+  typName: string;
+  kategorie: TeileKategorie;
+  waschbar: boolean;
+  waschgrenze: number | null;
+  verbleibend: number | null;
+  ampel: Ampel;
+  personName: string | null;
+  atemschutz: boolean;
+  chargeNummer: string | null;
+  hinweise: string[];
+  pruefungFaellig: boolean;
+}
+
+export interface TeilFormData {
+  nummer: string;
+  matrixCode: string | null;
+  typId: number;
+  groesse: string | null;
+  hersteller: string | null;
+  beschaffung: string | null;
+  personId: number | null;
+  standort: string | null;
+  waschzaehler: number;
+  letztePruefung: string | null;
+  notiz: string | null;
+}
+
+export interface Vorgang {
+  id: number;
+  teilId: number;
+  typ: VorgangTyp;
+  zeit: string;
+  detail: string | null;
+  anlass: WaescheAnlass | null;
+  zaehlerVorher: number | null;
+  zaehlerNachher: number | null;
+  personId: number | null;
+  chargeId: number | null;
+  benutzer: string | null;
+  personName?: string | null;
+  chargeNummer?: string | null;
+}
+
+export interface VorgangMitNamen extends Vorgang {
+  nummer: string;
+  typName: string;
+  personName: string | null;
+  chargeNummer: string | null;
+}
+
+export interface Charge {
+  id: number;
+  nummer: string;
+  anlass: WaescheAnlass;
+  ort: string;
+  status: ChargeStatus;
+  notiz: string | null;
+  erstellt: string;
+  abgegeben: string | null;
+  zurueck: string | null;
+  benutzer: string | null;
+}
+
+export interface ChargeMitTeilen extends Charge {
+  teile: TeilMitDetails[];
+}
+
+export interface ChargeFormData {
+  anlass: WaescheAnlass;
+  ort: string;
+  notiz: string | null;
+}
+
+export interface PersonMitAusstattung extends Person {
+  teile: TeilMitDetails[];
+  inWaesche: number;
+  fehlend: string[];
+  hinweise: string[];
+}
+
+export interface Uebersicht {
+  teileGesamt: number;
+  inWaesche: number;
+  waschgrenzeNah: number;
+  pruefungFaellig: number;
+  imPool: number;
+  handlungsbedarf: TeilMitDetails[];
+  offeneChargen: ChargeMitTeilen[];
+  letzteVorgaenge: VorgangMitNamen[];
+}
+
+export interface Auswertung {
+  waeschenProMonat: { monat: string; waeschen: number }[];
+  waeschenNachAnlass: { anlass: WaescheAnlass; anzahl: number }[];
+  waeschenProTyp: { typName: string; waeschen: number; teile: number; schnitt: number }[];
+  jahresWaeschen: number;
+  ausgesondert: number;
+}
+
+/** Was der Scan auslösen soll – wird vor dem Scannen gewählt. */
+export type ScanVorgang = 'waesche' | 'zurueck' | 'ausgabe' | 'ruecknahme' | 'lookup';
+
+export interface ScanErgebnis {
+  status: 'ok' | 'unbekannt' | 'hinweis';
+  meldung: string;
+  codeArt: 'nummer' | 'matrix';
+  code: string;
+  teil: TeilMitDetails | null;
+}
+
+export interface TeilDetailAntwort {
+  teil: TeilMitDetails;
+  vorgaenge: Vorgang[];
+}
+
+export interface ChargeZurueckAntwort {
+  charge: ChargeMitTeilen;
+  gezaehlt: number;
+  ueberGrenze: string[];
+}
+
+// --- Rahmen (Anmeldung, Kopplung, Sicherung) ---
+
+export interface AppConfig {
+  titel: string;
+  untertitel: string;
+}
+
+export interface AuthStatus {
+  anmeldungNoetig: boolean;
+  angemeldet: boolean;
+  benutzer: string | null;
+  warnung: string | null;
+}
+
+export interface ScanSitzung {
+  id: string;
+  koppelCode: string;
+}
+
+export interface ScanEreignis {
+  id: number;
+  code: string;
+  zeit: string;
+}
+
+export interface ScanWarteErgebnis {
+  aktiv: boolean;
+  gekoppelt: boolean;
+  letzteId: number;
+  ereignisse: ScanEreignis[];
+}
+
+export interface KleidungExport {
+  typen: Teiletyp[];
+  personen: Person[];
+  teile: Kleidungsstueck[];
+  chargen: Charge[];
+  vorgaenge: Vorgang[];
+}
+
+export interface ImportErgebnis {
+  message: string;
+  teile: number;
+  personen: number;
+  vorgaenge: number;
+}

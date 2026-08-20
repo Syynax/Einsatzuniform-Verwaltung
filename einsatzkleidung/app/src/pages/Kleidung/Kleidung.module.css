@@ -1,0 +1,783 @@
+/* ============================================
+   Einsatzkleidung – Seitenstile.
+   Gleiche Bausteine wie in der Getränkeverwaltung
+   (Design-System „Feuerwache"), nur auf das
+   reduziert, was diese Seite braucht.
+   ============================================ */
+
+.page {
+  padding: 2rem;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* --- Sub-Tabs ------------------------------------------------------- */
+
+.subTabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--border-color);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.subTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.125rem;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.subTab:hover { color: var(--text-primary); }
+
+.subTabActive {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.subTabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.subTabCountAlert {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* --- Status-Leiste --------------------------------------------------- */
+
+.statusBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.statusPill {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 1rem;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.statusPill i { font-size: 0.9375rem; opacity: 0.85; }
+
+.statusPillText { display: flex; flex-direction: column; line-height: 1.15; }
+
+.statusPillValue {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.statusPillLabel {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.statusPillWarn {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(217, 119, 6, 0.25);
+}
+.statusPillWarn .statusPillValue, .statusPillWarn i { color: var(--signal-amber); }
+
+.statusPillStop {
+  background: rgba(185, 28, 28, 0.1);
+  border-color: rgba(185, 28, 28, 0.25);
+}
+.statusPillStop .statusPillValue, .statusPillStop i { color: var(--signal-red); }
+
+/* --- Karten & Tabellen ----------------------------------------------- */
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  padding: 1.5rem;
+  min-width: 0;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.zweiSpalten {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  align-items: start;
+}
+
+.zweiSpaltenBreit {
+  display: grid;
+  grid-template-columns: 1fr 2.2fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+.table { width: 100%; border-collapse: collapse; }
+
+.table th {
+  text-align: left;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 0.75rem 0.875rem;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.table tbody tr { transition: background 0.15s; }
+.table tbody tr:hover { background: var(--accent-soft); }
+.table tr:last-child td { border-bottom: none; }
+.klickbar { cursor: pointer; }
+
+.mono {
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.num { font-variant-numeric: tabular-nums; }
+.label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+.soft { color: var(--text-secondary); font-size: 0.8125rem; }
+.rechts { text-align: right; }
+
+/* --- Knöpfe ---------------------------------------------------------- */
+
+.btnPrimary,
+.btnSecondary,
+.btnDanger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnPrimary { background: var(--accent); color: #ffffff; }
+.btnPrimary:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+
+.btnSecondary {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 2px solid var(--border-color);
+}
+.btnSecondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
+.btnDanger { background: #fee2e2; color: #dc2626; }
+.btnDanger:hover:not(:disabled) { background: #fecaca; }
+
+.btnPrimary:disabled,
+.btnSecondary:disabled,
+.btnDanger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btnBlock { width: 100%; justify-content: center; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.875rem;
+  border: 2px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.chip:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.chipAktiv {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.chipKlein { padding: 0.3rem 0.7rem; font-size: 0.75rem; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.bOk { background: rgba(21, 128, 61, 0.12); color: var(--signal-green); }
+.bWash { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
+.bWarn { background: rgba(217, 119, 6, 0.14); color: var(--signal-amber); }
+.bStop { background: rgba(185, 28, 28, 0.12); color: var(--signal-red); }
+.bPool { background: var(--bg-secondary); color: var(--text-secondary); }
+
+/* --- Waschzähler ----------------------------------------------------- */
+
+.washBar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+.washBarGross { height: 10px; }
+
+.washFill { display: block; height: 100%; border-radius: 999px; background: var(--signal-green); }
+.washFillWarn { background: var(--signal-amber); }
+.washFillStop { background: var(--signal-red); }
+
+.washZahl { font-weight: 700; font-variant-numeric: tabular-nums; }
+.warnText { color: var(--signal-amber); }
+.stopText { color: var(--signal-red); }
+
+/* --- Kachelraster ----------------------------------------------------- */
+
+.filterLeiste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.suche {
+  min-width: 15rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+.suche:focus { outline: none; border-color: var(--accent); }
+
+.rasterEnde { margin-left: auto; display: flex; gap: 0.5rem; align-items: center; }
+
+.teileGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.teilCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  padding: 1.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.teilCard:hover { border-color: var(--border-strong); }
+.teilCardWarn { border-left: 3px solid var(--signal-amber); }
+.teilCardStop { border-left: 3px solid var(--signal-red); }
+.teilCardAus { opacity: 0.6; }
+
+.teilKopf {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.teilNummer {
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.teilFuss {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.75rem;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--text-secondary);
+}
+.emptyState i { font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5; }
+.emptyState p { margin: 0 0 0.75rem; font-size: 0.875rem; }
+
+/* --- Scannen ---------------------------------------------------------- */
+
+.scanKopf { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+
+.scanZiel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.scanRaster {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.kamera {
+  position: relative;
+  min-height: 320px;
+  border-radius: var(--radius-md);
+  background: #202225;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kamera video {
+  width: 100%;
+  height: 100%;
+  max-height: 380px;
+  object-fit: cover;
+}
+
+.kameraRahmen {
+  position: absolute;
+  inset: 12% 18%;
+  border: 2px solid rgba(200, 16, 46, 0.85);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.kameraHinweis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.75rem 1rem;
+  background: rgba(15, 16, 18, 0.75);
+  color: #e6e3dc;
+  font-size: 0.8125rem;
+}
+
+.kameraAus {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.handEingabe {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-top: 1rem;
+}
+
+.handFeld {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.9375rem;
+}
+.handFeld:focus { outline: none; border-color: var(--accent); }
+
+.scanFeedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+}
+.scanOk { background: rgba(21, 128, 61, 0.12); color: var(--signal-green); }
+.scanWarn { background: rgba(217, 119, 6, 0.14); color: var(--signal-amber); }
+.scanFehler { background: #fee2e2; color: #dc2626; }
+
+.scanSpalte { display: flex; flex-direction: column; gap: 1rem; }
+
+.scanUnbekannt { border: 1px dashed var(--border-strong); }
+
+.koppelBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.koppelCode {
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  border: 2px dashed var(--accent);
+  text-align: center;
+}
+.koppelCode strong {
+  display: block;
+  font-size: 2rem;
+  letter-spacing: 0.3em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Wäsche ----------------------------------------------------------- */
+
+.chargeListe { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.chargeEintrag {
+  padding: 0.875rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  width: 100%;
+}
+
+.chargeAktiv {
+  border-color: var(--accent);
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.chargeKopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-weight: 700;
+}
+
+.schritte {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.schritt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.schrittAktiv { color: var(--accent); }
+
+.schrittZahl {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid var(--border-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+
+.schrittAktiv .schrittZahl {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.schrittLinie { flex: 1; height: 2px; background: var(--border-color); margin: 0 0.875rem; }
+
+.chargenFuss {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.hinweisBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  background: rgba(217, 119, 6, 0.12);
+  color: var(--signal-amber);
+}
+
+/* --- Personen --------------------------------------------------------- */
+
+.ausstattung { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.ausstattungZeile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  width: 100%;
+}
+
+/* --- Auswertung ------------------------------------------------------- */
+
+.balkenReihe {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  height: 180px;
+  padding-top: 1rem;
+}
+
+.balkenSpalte {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.balken {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+  min-height: 2px;
+}
+
+.balkenWert { font-size: 0.75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.balkenLabel {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* --- Dialoge ---------------------------------------------------------- */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 16, 18, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  z-index: 50;
+  overflow-y: auto;
+}
+
+.modal {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 34rem;
+}
+
+.modalGross { max-width: 52rem; }
+
+.modalKopf {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.modalKopf h2 { margin: 0; font-size: 1.25rem; }
+
+.schliessen {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 1.125rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-md);
+}
+.schliessen:hover { background: var(--bg-secondary); color: var(--text-primary); }
+
+.formGroup { margin-bottom: 1rem; }
+
+.formGroup label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.formGroup input,
+.formGroup select,
+.formGroup textarea {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.formGroup input:focus,
+.formGroup select:focus,
+.formGroup textarea:focus { outline: none; border-color: var(--accent); }
+
+.formGroup input[type='checkbox'] { width: auto; margin-right: 0.5rem; }
+
+.formHinweis { margin: 0.35rem 0 0; font-size: 0.75rem; color: var(--text-muted); }
+
+.formReihe { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.formReiheDrei { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+
+.modalAktionen {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+}
+
+.fehlerText {
+  padding: 0.625rem 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: var(--radius-md);
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 0.8125rem;
+}
+
+.detailRaster {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.aktionenSpalte { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.ladeState {
+  padding: 3rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .zweiSpalten,
+  .zweiSpaltenBreit,
+  .scanRaster { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .page { padding: 1rem; }
+  .formReihe, .formReiheDrei { grid-template-columns: 1fr; }
+  .detailRaster { grid-template-columns: 1fr 1fr; }
+  .rasterEnde { margin-left: 0; width: 100%; }
+  .suche { min-width: 0; flex: 1; }
+}

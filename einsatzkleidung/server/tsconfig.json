@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*"],
+  // Tests gehören nicht ins Add-on-Image – sie werden über tsconfig.test.json
+  // nach dist-test gebaut und dort ausgeführt.
+  "exclude": ["node_modules", "dist", "dist-test", "src/**/*.test.ts"]
+}
