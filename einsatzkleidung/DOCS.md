@@ -29,7 +29,7 @@ Dazu:
 
 1. In Home Assistant: **Einstellungen → Add-ons → Add-on-Store**
 2. Oben rechts **⋮ → Repositories**, diese URL hinzufügen:
-   `https://github.com/Syynax/getraenkeverwaltung`
+   `https://github.com/Syynax/Einsatzuniform-Verwaltung`
 3. Add-on **Einsatzkleidung** auswählen, **Installieren**, **Starten**
 
 Der erste Start dauert ein paar Minuten – das Image wird lokal gebaut.

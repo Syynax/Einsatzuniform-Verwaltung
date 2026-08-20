@@ -2,7 +2,7 @@ name: Einsatzkleidung
 version: "1.0.0"
 slug: einsatzkleidung
 description: Einsatzkleidung, Waschzyklen und Prüffristen für die Feuerwehr
-url: https://github.com/Syynax/getraenkeverwaltung/tree/main/einsatzkleidung
+url: https://github.com/Syynax/Einsatzuniform-Verwaltung/tree/main/einsatzkleidung
 # armhf/i386 fehlen bewusst: für diese Architekturen gibt es kein
 # offizielles Node-Image für die Build-Stage.
 arch:

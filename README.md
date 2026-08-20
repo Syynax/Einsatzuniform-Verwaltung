@@ -39,7 +39,7 @@ Dazu:
 3. Diese URL eintragen und hinzufügen:
 
    ```
-   https://github.com/Syynax/einsatzkleidung
+   https://github.com/Syynax/Einsatzuniform-Verwaltung
    ```
 
 4. Add-on **Einsatzkleidung** auswählen, **Installieren**, **Starten**
