@@ -11,11 +11,12 @@ interface Props {
   onNeu: () => void;
   onTypen: () => void;
   onImport: () => void;
+  onEtiketten: (teile: TeilMitDetails[]) => void;
 }
 
 const STATUS_FILTER: (TeilStatus | 'alle')[] = ['alle', 'dienst', 'waesche', 'reparatur', 'ausgesondert'];
 
-export const KleidungTab: React.FC<Props> = ({ teile, typen, onTeil, onNeu, onTypen, onImport }) => {
+export const KleidungTab: React.FC<Props> = ({ teile, typen, onTeil, onNeu, onTypen, onImport, onEtiketten }) => {
   const [typFilter, setTypFilter] = useState<number | 'alle'>('alle');
   const [statusFilter, setStatusFilter] = useState<TeilStatus | 'alle'>('alle');
   const [nurOhneCode, setNurOhneCode] = useState(false);
@@ -82,6 +83,15 @@ export const KleidungTab: React.FC<Props> = ({ teile, typen, onTeil, onNeu, onTy
             title="Kleidungsstücke aus einer CSV-Datei übernehmen"
           >
             <i className="fas fa-file-csv" aria-hidden="true"></i> CSV
+          </button>
+          <button
+            className={styles.btnSecondary}
+            onClick={() => onEtiketten(gefiltert)}
+            type="button"
+            title="Etiketten mit QR-Code für die angezeigten Teile drucken"
+            disabled={gefiltert.length === 0}
+          >
+            <i className="fas fa-tag" aria-hidden="true"></i> Etiketten
           </button>
           <button className={styles.btnSecondary} onClick={onTypen} type="button">
             <i className="fas fa-sliders" aria-hidden="true"></i> Typen

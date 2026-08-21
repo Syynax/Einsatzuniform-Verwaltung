@@ -781,3 +781,129 @@
   .rasterEnde { margin-left: 0; width: 100%; }
   .suche { min-width: 0; flex: 1; }
 }
+
+/* --- Etikettenbogen ------------------------------------------------------
+   Masse in Millimetern, weil das Ergebnis auf Papier landet und nicht am
+   Bildschirm: Ein Etikett soll gedruckt so gross sein, wie es hier steht. */
+
+.bogenRahmen {
+  max-height: 26rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #ffffff;
+}
+
+.etikettenBogen {
+  display: grid;
+  gap: 2mm;
+}
+
+.etikett {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+  padding: 2mm;
+  border: 1px solid #000000;
+  border-radius: 1.5mm;
+  background: #ffffff;
+  /* Ein Etikett darf nie über den Seitenrand zerrissen werden. */
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.etikettQr {
+  flex: 0 0 auto;
+  width: 17mm;
+  height: 17mm;
+}
+
+.etikettText {
+  min-width: 0;
+  color: #000000;
+  line-height: 1.25;
+}
+
+.etikettNummer {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-weight: 700;
+  font-size: 3.4mm;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.etikettZeile {
+  font-size: 2.5mm;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.etikettWeg {
+  position: absolute;
+  top: -0.5rem;
+  right: -0.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card, #ffffff);
+  color: var(--text, #000000);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+@media print {
+  /* Der Etikettendialog hängt per Portal am body, nicht im App-Baum. Zum
+     Drucken reicht deshalb: die App ausblenden, den Dialog auf den Bogen
+     eindampfen. */
+  :global(#root) {
+    display: none !important;
+  }
+
+  .modalOverlay {
+    position: static;
+    display: block;
+    overflow: visible;
+    padding: 0;
+    background: none;
+  }
+
+  .modal,
+  .modalGross {
+    max-width: none;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #ffffff;
+  }
+
+  /* Alles, was zur Bedienung gehört, ist auf Papier nur Ballast. */
+  .modalKopf,
+  .hinweisBox,
+  .filterLeiste,
+  .formHinweis,
+  .modalAktionen,
+  .soft,
+  .etikettWeg {
+    display: none !important;
+  }
+
+  .bogenRahmen {
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    background: #ffffff;
+  }
+}
+
+@page {
+  margin: 10mm;
+}

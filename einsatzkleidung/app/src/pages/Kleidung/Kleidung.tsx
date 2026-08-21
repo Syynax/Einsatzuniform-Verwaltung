@@ -14,6 +14,7 @@ import { TeilDetail } from './dialoge/TeilDetail';
 import { PersonDialog } from './dialoge/PersonDialog';
 import { PersonenImportDialog } from './dialoge/PersonenImportDialog';
 import { TeileImportDialog } from './dialoge/TeileImportDialog';
+import { EtikettenDialog } from './dialoge/EtikettenDialog';
 import { TypenDialog } from './dialoge/TypenDialog';
 import { ChargeDialog } from './dialoge/ChargeDialog';
 import styles from './Kleidung.module.css';
@@ -44,6 +45,7 @@ export const Kleidung: React.FC = () => {
   const [personDialog, setPersonDialog] = useState<{ person: PersonMitAusstattung | null } | null>(null);
   const [importOffen, setImportOffen] = useState(false);
   const [teileImportOffen, setTeileImportOffen] = useState(false);
+  const [etiketten, setEtiketten] = useState<TeilMitDetails[] | null>(null);
   const [typenOffen, setTypenOffen] = useState(false);
   const [chargeDialog, setChargeDialog] = useState<{ charge: ChargeMitTeilen | null } | null>(null);
 
@@ -107,6 +109,7 @@ export const Kleidung: React.FC = () => {
           onNeu={() => setTeilDialog({ teil: null })}
           onTypen={() => setTypenOffen(true)}
           onImport={() => setTeileImportOffen(true)}
+          onEtiketten={setEtiketten}
         />
       )}
 
@@ -185,6 +188,10 @@ export const Kleidung: React.FC = () => {
             await daten.neuLaden();
           }}
         />
+      )}
+
+      {etiketten && (
+        <EtikettenDialog teile={etiketten} onClose={() => setEtiketten(null)} />
       )}
 
       {teileImportOffen && (
