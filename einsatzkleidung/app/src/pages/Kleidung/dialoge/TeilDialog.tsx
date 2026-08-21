@@ -1,30 +1,48 @@
 import { useState } from 'react';
 import type { PersonMitAusstattung, TeilFormData, TeilMitDetails, Teiletyp } from '../../../types/kleidung';
 import { createTeil, updateTeil } from '../../../services/api';
-import { NUMMER_HINWEIS, NUMMER_MUSTER, formatiereNummer } from '../../../constants/kleidung';
+import { IDENT_HINWEIS, NUMMER_HINWEIS, NUMMER_MUSTER, formatiereNummer } from '../../../constants/kleidung';
 import styles from '../Kleidung.module.css';
+
+/**
+ * Vorbelegung für ein neues Teil. Jedes Feld ist einzeln optional: Aus einem
+ * Scan kommt mal die Nummer, mal der Matrixcode, mal beides und dazu, was sich
+ * aus dem Herstellercode lesen liess.
+ */
+export interface TeilVorgabe {
+  nummer?: string;
+  matrixCode?: string;
+  groesse?: string;
+  hersteller?: string;
+  beschaffung?: string;
+}
 
 interface Props {
   teil: TeilMitDetails | null;
-  /** Vorbelegte Nummer – kommt aus einem Scan, zu dem es noch kein Teil gibt. */
-  nummerVorgabe?: string;
+  /** Vorbelegung – kommt aus einem Scan, zu dem es noch kein Teil gibt. */
+  vorgabe?: TeilVorgabe;
   typen: Teiletyp[];
   personen: PersonMitAusstattung[];
   onClose: () => void;
   onGespeichert: () => Promise<void>;
 }
 
-export const TeilDialog: React.FC<Props> = ({ teil, nummerVorgabe, typen, personen, onClose, onGespeichert }) => {
-  const [nummer, setNummer] = useState(teil?.nummer ?? nummerVorgabe ?? '');
+export const TeilDialog: React.FC<Props> = ({ teil, vorgabe, typen, personen, onClose, onGespeichert }) => {
+  // Beim Bearbeiten gewinnen die Werte des Teils immer – auch dort, wo sie
+  // leer sind. Ein Vorschlag aus einem Scan darf ein bewusst leer gelassenes
+  // Feld eines vorhandenen Teils nicht hinterrücks wieder füllen.
+  const vor = teil ? undefined : vorgabe;
+
+  const [nummer, setNummer] = useState(teil?.nummer ?? vor?.nummer ?? '');
   const [typId, setTypId] = useState<number | ''>(teil?.typId ?? (typen[0]?.id ?? ''));
-  const [groesse, setGroesse] = useState(teil?.groesse ?? '');
-  const [hersteller, setHersteller] = useState(teil?.hersteller ?? '');
-  const [beschaffung, setBeschaffung] = useState(teil?.beschaffung ?? '');
+  const [groesse, setGroesse] = useState(teil?.groesse ?? vor?.groesse ?? '');
+  const [hersteller, setHersteller] = useState(teil?.hersteller ?? vor?.hersteller ?? '');
+  const [beschaffung, setBeschaffung] = useState(teil?.beschaffung ?? vor?.beschaffung ?? '');
   const [personId, setPersonId] = useState<number | ''>(teil?.personId ?? '');
   const [standort, setStandort] = useState(teil?.standort ?? '');
   const [waschzaehler, setWaschzaehler] = useState(String(teil?.waschzaehler ?? 0));
   const [letztePruefung, setLetztePruefung] = useState(teil?.letztePruefung ?? '');
-  const [matrixCode, setMatrixCode] = useState(teil?.matrixCode ?? '');
+  const [matrixCode, setMatrixCode] = useState(teil?.matrixCode ?? vor?.matrixCode ?? '');
   const [notiz, setNotiz] = useState(teil?.notiz ?? '');
   const [fehler, setFehler] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,14 +55,26 @@ export const TeilDialog: React.FC<Props> = ({ teil, nummerVorgabe, typen, person
       setFehler('Bitte einen Teiletyp wählen.');
       return;
     }
-    if (!NUMMER_MUSTER.test(nummer)) {
+    // Eine Nummer, die dasteht, muss stimmen – eine, die fehlt, ist erlaubt.
+    // Das ist der ganze Unterschied zu früher: Beanstandet wird nur noch die
+    // unlesbare Nummer, nicht mehr die fehlende.
+    const gesetzteNummer = nummer.trim() || null;
+    if (gesetzteNummer !== null && !NUMMER_MUSTER.test(gesetzteNummer)) {
       setFehler(`Die Nummer muss dem Muster ${NUMMER_HINWEIS} folgen.`);
       return;
     }
 
+    // Dieselbe Regel, die der Server durchsetzt – hier nur früher, damit der
+    // Dialog nicht erst über eine abgewiesene Anfrage antwortet.
+    const gesetzterCode = matrixCode.trim() || null;
+    if (gesetzteNummer === null && gesetzterCode === null) {
+      setFehler(IDENT_HINWEIS);
+      return;
+    }
+
     const daten: TeilFormData = {
-      nummer,
-      matrixCode: matrixCode.trim() || null,
+      nummer: gesetzteNummer,
+      matrixCode: gesetzterCode,
       typId,
       groesse: groesse.trim() || null,
       hersteller: hersteller.trim() || null,
@@ -73,7 +103,7 @@ export const TeilDialog: React.FC<Props> = ({ teil, nummerVorgabe, typen, person
     <div className={styles.modalOverlay} onClick={onClose}>
       <form className={styles.modal} onClick={e => e.stopPropagation()} onSubmit={speichern}>
         <div className={styles.modalKopf}>
-          <h2>{teil ? `Teil ${teil.nummer} ändern` : 'Kleidungsstück anlegen'}</h2>
+          <h2>{teil ? `Teil ${teil.bezeichnung} ändern` : 'Kleidungsstück anlegen'}</h2>
           <button className={styles.schliessen} onClick={onClose} type="button" aria-label="Schließen">
             <i className="fas fa-xmark" aria-hidden="true"></i>
           </button>
@@ -90,18 +120,18 @@ export const TeilDialog: React.FC<Props> = ({ teil, nummerVorgabe, typen, person
 
         <div className={styles.formReihe}>
           <div className={styles.formGroup}>
-            <label htmlFor="teil-nummer">Nummer *</label>
+            <label htmlFor="teil-nummer">Nummer</label>
             <input
               id="teil-nummer"
               value={nummer}
               onChange={e => setNummer(formatiereNummer(e.target.value))}
               placeholder="1042-07/19"
-              required
               autoFocus
             />
             <p className={styles.formHinweis}>
               Die aufgedruckte Nummer, Muster {NUMMER_HINWEIS}. Sie darf mehrfach vorkommen –
               steht auf dem Etikett die Nummer der Lieferung, unterscheiden Typ und Träger die Teile.
+              Trägt das Teil keine, bleibt das Feld leer und der Matrixcode weiter unten führt es.
             </p>
           </div>
 
@@ -184,7 +214,9 @@ export const TeilDialog: React.FC<Props> = ({ teil, nummerVorgabe, typen, person
             placeholder="wird beim Scannen angelernt"
           />
           <p className={styles.formHinweis}>
-            Roher Inhalt des Codes am Etikett. Er wird nicht ausgewertet – er dient nur als Zuordnung.
+            Roher Inhalt des Codes am Etikett. Für die Zuordnung zählt er als Ganzes; beim Anlegen aus
+            einem Scan werden Größe, Hersteller und Herstellmonat daraus vorgeschlagen, soweit sie
+            erkennbar sind. Vorgeschlagene Felder lassen sich hier überschreiben.
           </p>
         </div>
 

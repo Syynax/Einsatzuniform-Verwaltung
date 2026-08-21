@@ -97,13 +97,13 @@ export const UebersichtTab: React.FC<Props> = ({ uebersicht, onTeil, onScannen, 
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Nummer</th><th>Teil</th><th>Träger</th><th>Wäschen</th><th>Hinweis</th>
+                  <th>Kennung</th><th>Teil</th><th>Träger</th><th>Wäschen</th><th>Hinweis</th>
                 </tr>
               </thead>
               <tbody>
                 {uebersicht.handlungsbedarf.map(teil => (
                   <tr key={teil.id} className={styles.klickbar} onClick={() => onTeil(teil.id)}>
-                    <td className={styles.mono}>{teil.nummer}</td>
+                    <td className={styles.mono}>{teil.bezeichnung}</td>
                     <td>{teil.typName}</td>
                     <td><TraegerBadge teil={teil} /></td>
                     <td className={styles.num}>
@@ -181,13 +181,13 @@ export const UebersichtTab: React.FC<Props> = ({ uebersicht, onTeil, onScannen, 
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>
-              <tr><th>Zeitpunkt</th><th>Nummer</th><th>Teil</th><th>Vorgang</th><th>Person</th><th>Wäschen</th></tr>
+              <tr><th>Zeitpunkt</th><th>Kennung</th><th>Teil</th><th>Vorgang</th><th>Person</th><th>Wäschen</th></tr>
             </thead>
             <tbody>
               {uebersicht.letzteVorgaenge.map(vorgang => (
                 <tr key={vorgang.id} className={styles.klickbar} onClick={() => onTeil(vorgang.teilId)}>
                   <td className={styles.num}>{zeitpunkt(vorgang.zeit)}</td>
-                  <td className={styles.mono}>{vorgang.nummer}</td>
+                  <td className={styles.mono}>{vorgang.bezeichnung}</td>
                   <td>{vorgang.typName}</td>
                   <td>
                     <i className={`fas ${VORGANG_ICON[vorgang.typ]}`} aria-hidden="true" style={{ marginRight: '0.4rem', opacity: 0.7 }}></i>

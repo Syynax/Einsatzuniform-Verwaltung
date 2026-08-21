@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { aktualisiereTeil, analysiereTeileImport, neuesTeilAus } from './teileImport';
+import { IDENT_HINWEIS } from './kleidung';
 import type { Kleidungsstueck, Person, Teiletyp } from '../types/kleidung';
 
 const JACKE: Teiletyp = {
@@ -253,6 +254,21 @@ test('neuesTeilAus rechnet den nächsten Prüftermin aus', () => {
   assert.equal(neu.waschzaehler, 0);
 });
 
+test('neuesTeilAus legt ein Teil ohne Nummer mit null an, nicht mit leerem String', () => {
+  // Der Unterschied ist nicht kosmetisch: Ein leerer String ist eine Nummer,
+  // die es zu sein behauptet – `stammdatenDiff` meldete später „Nummer  → …",
+  // und der Import-Index über Nummer, Typ und Träger nähme das Teil wieder auf.
+  const neu = neuesTeilAus(
+    { nummer: null, typId: 2, matrixCode: 'BO00297362' },
+    7,
+    HELM,
+    '2026-08-20T10:00:00.000Z',
+  );
+
+  assert.equal(neu.nummer, null);
+  assert.equal(neu.matrixCode, 'BO00297362');
+});
+
 test('neuesTeilAus lässt einen nicht waschbaren Typ ohne Zähler', () => {
   const neu = neuesTeilAus({ nummer: '1042-07/19', typId: 2, waschzaehler: 5 }, 7, HELM, '2026-08-20T10:00:00.000Z');
   assert.equal(neu.waschzaehler, 0);
@@ -332,4 +348,180 @@ test('sind zwei Teile im Bestand nicht unterscheidbar, rät der Import nicht', (
   assert.equal(bericht.aktualisiert, 0);
   assert.equal(bericht.fehler, 1);
   assert.equal(bericht.zeilen[0].teilId, null);
+});
+
+// --- Matrixcode als zweiter Schlüssel ------------------------------------
+
+test('eine Datei ganz ohne Nummernspalte wird angenommen', () => {
+  // „Nummer oder Matrixcode" gilt auch für die Kopfzeile: Wer seinen Bestand
+  // mit dem Scanner aufgenommen hat, hat gar keine Nummernspalte.
+  const bericht = analysiereTeileImport(
+    'Matrixcode;Typ\nBO00297362TOTAL CARE21021892 / LION 20200228S/R;Feuerwehrhelm\n',
+    bestand(),
+    'ueberspringen',
+  );
+
+  assert.equal(bericht.problem, null);
+  assert.equal(bericht.neu, 1);
+  assert.equal(bericht.fehler, 0);
+});
+
+test('eine Zeile ohne Nummer, aber mit Matrixcode, ist ein neues Teil', () => {
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Matrixcode\n;Feuerwehrhelm;ABC123\n',
+    bestand(),
+    'ueberspringen',
+  );
+
+  assert.equal(bericht.fehler, 0);
+  assert.equal(bericht.neu, 1);
+  assert.equal(bericht.zeilen[0].werte?.nummer, null);
+  assert.equal(bericht.zeilen[0].werte?.matrixCode, 'ABC123');
+});
+
+test('eine Zeile ohne Nummer und ohne Matrixcode benennt kein Teil', () => {
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Matrixcode\n;Feuerwehrhelm;\n',
+    bestand(),
+    'ueberspringen',
+  );
+
+  assert.equal(bericht.fehler, 1);
+  assert.equal(bericht.neu, 0);
+  // Derselbe Satz, den auch Dialog und Scan zeigen – es ist dieselbe Regel.
+  assert.equal(bericht.zeilen[0].meldung, IDENT_HINWEIS);
+});
+
+test('ohne Matrixcode-Spalte bleibt eine leere Nummernzelle eine Fehlerzeile', () => {
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ\n;Feuerwehrhelm\n',
+    bestand(),
+    'ueberspringen',
+  );
+
+  assert.equal(bericht.fehler, 1);
+  assert.equal(bericht.zeilen[0].meldung, IDENT_HINWEIS);
+});
+
+test('der Matrixcode erkennt ein Bestandsteil wieder, auch wenn der Träger abweicht', () => {
+  // Der Dreier-Schlüssel ginge hier daneben und legte ein zweites Teil an:
+  // Im Bestand liegt die Jacke im Pool, in der Datei trägt sie jemand. Genau
+  // das ist der Normalfall beim Import – die Datei bringt den neuen Stand.
+  const vorhanden = bestand({
+    teile: [teil({ id: 1, nummer: '1042-07/19', matrixCode: 'ABC123', personId: null })],
+  });
+
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Träger;Matrixcode;Größe\n1042-07/19;Überjacke HuPF Teil 1;Müller, Anna;ABC123;54\n',
+    vorhanden,
+    'aktualisieren',
+  );
+
+  assert.equal(bericht.neu, 0);
+  assert.equal(bericht.aktualisiert, 1);
+  assert.equal(bericht.zeilen[0].teilId, 1);
+});
+
+test('ein Bestandsteil ohne Nummer ist kein Matrixcode-Konflikt', () => {
+  // Der Code sitzt am selben Teil, die Datei trägt bloss die Nummer nach.
+  // Früher galt jede Abweichung als „Matrixcode gehört schon zu …".
+  const vorhanden = teil({ id: 1, nummer: '', matrixCode: 'ABC123' });
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Matrixcode\n1042-07/19;Überjacke HuPF Teil 1;ABC123\n',
+    bestand({ teile: [vorhanden] }),
+    'aktualisieren',
+  );
+
+  assert.equal(bericht.fehler, 0);
+  assert.equal(bericht.aktualisiert, 1);
+  assert.equal(bericht.zeilen[0].teilId, 1);
+  assert.equal(aktualisiereTeil(vorhanden, bericht.zeilen[0].werte!, JACKE).nummer, '1042-07/19');
+});
+
+test('eine leere Nummernzelle löscht keine vorhandene Nummer', () => {
+  // Hier weicht die Nummer bewusst von allen anderen Spalten ab: Bei
+  // matrixCode oder Standort heisst eine leere Zelle „entfernen", bei der
+  // Nummer heisst sie „weiss ich nicht". Eine aufgedruckte Nummer
+  // verschwindet nicht vom Kleidungsstück, bloss weil sie in der Tabelle
+  // fehlt.
+  const vorhanden = teil({ id: 1, nummer: '1042-07/19', matrixCode: 'ABC123' });
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Matrixcode;Größe\n;Überjacke HuPF Teil 1;ABC123;54\n',
+    bestand({ teile: [vorhanden] }),
+    'aktualisieren',
+  );
+
+  assert.equal(bericht.fehler, 0);
+  assert.equal(bericht.aktualisiert, 1);
+
+  const geaendert = aktualisiereTeil(vorhanden, bericht.zeilen[0].werte!, JACKE);
+  assert.equal(geaendert.nummer, '1042-07/19', 'die aufgedruckte Nummer bleibt stehen');
+  assert.equal(geaendert.groesse, '54');
+});
+
+test('eine fehlende Nummer allein macht aus einem Teil keine Änderung', () => {
+  // Sonst meldete jeder Import ohne Nummernspalte lauter Änderungen, die
+  // gar keine sind – und schriebe sie in den Nachweis.
+  const bericht = analysiereTeileImport(
+    'Matrixcode;Typ;Größe\nABC123;Überjacke HuPF Teil 1;52\n',
+    bestand({ teile: [teil({ id: 1, matrixCode: 'ABC123', groesse: '52' })] }),
+    'aktualisieren',
+  );
+
+  assert.equal(bericht.unveraendert, 1);
+  assert.equal(bericht.aktualisiert, 0);
+});
+
+test('ein abweichender Typ beim Matrixcode-Treffer wird gemeldet, nicht übernommen', () => {
+  // Über den Dreier-Schlüssel konnte das nie passieren: Dort steckt der Typ
+  // im Schlüssel, ein abweichender Typ trifft also gar nicht erst. Der
+  // Matrixcode trifft trotzdem – und ein Vertipper in der Typspalte, der
+  // zufällig einen anderen angelegten Typ trifft, machte aus der Jacke sonst
+  // stillschweigend einen Helm.
+  const vorhanden = teil({ id: 1, typId: JACKE.id, matrixCode: 'ABC123', waschzaehler: 37 });
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Matrixcode\n1042-07/19;Feuerwehrhelm;ABC123\n',
+    bestand({ teile: [vorhanden] }),
+    'aktualisieren',
+  );
+
+  assert.equal(bericht.fehler, 1);
+  assert.equal(bericht.aktualisiert, 0);
+  assert.equal(bericht.neu, 0);
+  assert.equal(bericht.zeilen[0].teilId, null, 'kein Teil wird angefasst');
+  assert.equal(bericht.zeilen[0].werte, null, 'es gibt nichts zu übernehmen');
+  assert.match(bericht.zeilen[0].meldung ?? '', /Überjacke HuPF Teil 1/);
+  assert.match(bericht.zeilen[0].meldung ?? '', /Feuerwehrhelm/);
+
+  // Der eigentliche Punkt: Der Helm ist nicht waschbar, `aktualisiereTeil`
+  // hätte den Waschzähler deshalb auf 0 gesetzt. Ein Nachweis über 37
+  // Wäschen an einem Teil mit Waschgrenze wäre ohne jede Spur verschwunden.
+  assert.equal(vorhanden.waschzaehler, 37, 'der Waschzähler bleibt unangetastet');
+});
+
+test('derselbe Typ ist beim Matrixcode-Treffer selbstverständlich kein Fehler', () => {
+  // Die Sperre gilt dem Typwechsel, nicht dem Matrixcode-Weg an sich.
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Matrixcode;Größe\n1042-07/19;Überjacke HuPF Teil 1;ABC123;54\n',
+    bestand({ teile: [teil({ id: 1, typId: JACKE.id, matrixCode: 'ABC123' })] }),
+    'aktualisieren',
+  );
+
+  assert.equal(bericht.fehler, 0);
+  assert.equal(bericht.aktualisiert, 1);
+  assert.equal(bericht.zeilen[0].teilId, 1);
+});
+
+test('eine Typkonflikt-Zeile blockiert den Code nicht für eine spätere, saubere Zeile', () => {
+  // Dieselbe Regel, die weiter oben schon für die Nummer gilt: Was an einer
+  // fehlerhaften Zeile scheitert, darf die folgende nicht mitreissen.
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Matrixcode;Größe\n1042-07/19;Feuerwehrhelm;ABC123;54\n1042-07/19;Überjacke HuPF Teil 1;ABC123;54\n',
+    bestand({ teile: [teil({ id: 1, typId: JACKE.id, matrixCode: 'ABC123' })] }),
+    'aktualisieren',
+  );
+
+  assert.equal(bericht.fehler, 1);
+  assert.equal(bericht.aktualisiert, 1);
+  assert.equal(bericht.zeilen[1].teilId, 1);
 });

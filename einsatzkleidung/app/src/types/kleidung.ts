@@ -63,7 +63,12 @@ export interface PersonFormData {
 
 export interface Kleidungsstueck {
   id: number;
-  nummer: string;
+  /**
+   * Aufgedruckte Nummer im Format XXXX-XX/XX, oder null. Manche Hersteller
+   * bringen nur noch den Matrixcode auf – eines von beidem muss da sein,
+   * welches, entscheidet das Etikett.
+   */
+  nummer: string | null;
   matrixCode: string | null;
   typId: number;
   groesse: string | null;
@@ -82,6 +87,12 @@ export interface Kleidungsstueck {
 }
 
 export interface TeilMitDetails extends Kleidungsstueck {
+  /**
+   * Wie das Teil im Fliesstext heisst – Nummer, sonst gekürzter Matrixcode.
+   * Der Server rechnet es beim Lesen aus; angezeigt wird überall dieses Feld
+   * und nicht mehr die Nummer, die es nicht bei jedem Teil gibt.
+   */
+  bezeichnung: string;
   typName: string;
   kategorie: TeileKategorie;
   waschbar: boolean;
@@ -97,7 +108,8 @@ export interface TeilMitDetails extends Kleidungsstueck {
 }
 
 export interface TeilFormData {
-  nummer: string;
+  /** Leer gelassen heisst: Das Teil wird über seinen Matrixcode geführt. */
+  nummer: string | null;
   matrixCode: string | null;
   typId: number;
   groesse: string | null;
@@ -127,7 +139,8 @@ export interface Vorgang {
 }
 
 export interface VorgangMitNamen extends Vorgang {
-  nummer: string;
+  /** Bezeichnung des Teils – Nummer, sonst gekürzter Matrixcode. */
+  bezeichnung: string;
   typName: string;
   personName: string | null;
   chargeNummer: string | null;
@@ -195,6 +208,25 @@ export type ScanVorgang = 'waesche' | 'zurueck' | 'ausgabe' | 'ruecknahme' | 'lo
  */
 export type ScanCodeArt = 'auto' | 'nummer' | 'matrix';
 
+/**
+ * Was sich aus einem unbekannten Matrixcode herauslesen liess.
+ *
+ * Herstelleretiketten tragen mehr als die Seriennummer – oft auch Hersteller,
+ * Herstelldatum und Größe. Erkannt wird nur, was zweifelsfrei dasteht; jedes
+ * Feld fehlt, wenn es sich nicht sicher lesen liess. Es sind Vorschläge für
+ * das Formular und keine Tatsachen: Im Dialog ist alles überschreibbar.
+ */
+export interface ScanVorschlag {
+  groesse?: string;
+  hersteller?: string;
+  /**
+   * Herstellmonat als `JJJJ-MM`, also im Format des Beschaffungsfeldes.
+   * Streng genommen ist es das Herstell- und nicht das Beschaffungsdatum –
+   * ein eigenes Feld dafür gibt es nicht, und es ist die beste Näherung.
+   */
+  beschaffung?: string;
+}
+
 export interface ScanErgebnis {
   status: 'ok' | 'unbekannt' | 'hinweis' | 'mehrdeutig';
   meldung: string;
@@ -207,6 +239,12 @@ export interface ScanErgebnis {
    * Die Wahl kommt als `teilId` zurück. Sonst leer.
    */
   kandidaten: TeilMitDetails[];
+  /**
+   * Nur bei einem Matrixcode, der keinem Teil zugeordnet werden konnte: was
+   * sich aus dem Code für ein neu anzulegendes Teil herauslesen liess. Fehlt,
+   * wenn nichts erkannt wurde.
+   */
+  vorschlag?: ScanVorschlag;
 }
 
 export interface TeilDetailAntwort {
@@ -317,7 +355,8 @@ export type TeilImportBefund = 'neu' | 'aktualisiert' | 'unveraendert' | 'uebers
 
 /** Nur die Felder, die die Datei mitbringt. */
 export interface TeilImportWerte {
-  nummer: string;
+  /** Fehlt, wenn die Zeile keine Nummer nennt – dann trägt sie einen Code. */
+  nummer?: string | null;
   typId: number;
   matrixCode?: string | null;
   groesse?: string | null;

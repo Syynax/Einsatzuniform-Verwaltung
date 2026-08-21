@@ -158,7 +158,7 @@ export const PersonenTab: React.FC<Props> = ({ personen, onNeu, onImport, onBear
                   type="button"
                 >
                   <span style={{ minWidth: 0 }}>
-                    <span className={styles.mono} style={{ fontWeight: 700, fontSize: '0.875rem' }}>{teil.nummer}</span>
+                    <span className={styles.mono} style={{ fontWeight: 700, fontSize: '0.875rem' }}>{teil.bezeichnung}</span>
                     <span className={styles.soft} style={{ display: 'block' }}>
                       {teil.typName}{teil.groesse ? ` · Gr. ${teil.groesse}` : ''}
                       {teil.status === 'waesche' ? ' · in Wäsche' : ''}

@@ -101,6 +101,14 @@ export const NUMMER_MUSTER = /^\d{4,10}-\d{2}\/\d{2}$/;
 export const NUMMER_HINWEIS = 'XXXX-XX/XX, vorne bis zu zehn Ziffern';
 
 /**
+ * Die Regel, wenn weder Nummer noch Matrixcode dasteht. Wortgleich mit
+ * `IDENT_HINWEIS` im Server (`server/src/domain/kleidung.ts`): Dieselbe Regel
+ * soll gleich klingen, egal ob das Formular oder der Server sie durchsetzt.
+ */
+export const IDENT_HINWEIS =
+  'Ein Teil braucht eine Nummer oder einen Matrixcode – ohne beides ist es nicht wiederzufinden.';
+
+/**
  * Setzt die Trenner selbst, damit niemand `-` und `/` tippen muss.
  *
  * Gerechnet wird nur mit den Ziffern; getippte Trenner werden verworfen und

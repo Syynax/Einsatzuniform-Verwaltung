@@ -11,7 +11,7 @@ aber genauso für die übrige Einsatzkleidung.
 | Tab | Inhalt |
 | --- | --- |
 | **Übersicht** | Was ansteht: Teile an der Waschgrenze, fällige Prüfungen, offene Reparaturen, laufende Wäsche und die letzten Vorgänge |
-| **Kleidung** | Alle Teile als Kacheln mit Waschzähler-Ampel, Filter nach Typ und Status, Volltextsuche über Nummer, Typ und Träger. Erfassen einzeln, als CSV-Import oder mit gedruckten Etiketten |
+| **Kleidung** | Alle Teile als Kacheln mit Waschzähler-Ampel, Filter nach Typ und Status, Volltextsuche über Nummer, Matrixcode, Typ und Träger. Erfassen einzeln, als CSV-Import oder mit gedruckten Etiketten |
 | **Scannen** | Nummerncode (`XXXX-XX/XX`, vorne bis zu zehn Ziffern) und Matrixcode – wahlweise mit der Kamera, getippt oder über ein gekoppeltes Handy |
 | **Wäsche** | Chargen: Teile einsammeln, abgeben, zurückmelden – ganz oder in Teilen. Erst die Rückmeldung zählt die Waschzähler hoch |
 | **Personen** | Einsatzkräfte mit ihrer Ausstattung, Atemschutz-Kennzeichnung und dem, was in der Sollausstattung fehlt. Anlegen einzeln oder als CSV-Import |
@@ -77,7 +77,9 @@ Danach in dieser Reihenfolge:
 2. **Personen**: Einsatzkräfte anlegen und bei den Atemschutzgeräteträgern den
    Haken setzen. Wer schon eine Mitgliederliste hat, nimmt den CSV-Import –
    siehe [Personen aus einer CSV übernehmen](#personen-aus-einer-csv-übernehmen).
-3. **Kleidung → Teil anlegen**: Nummer, Typ, Größe und Träger erfassen. Beim
+3. **Kleidung → Teil anlegen**: Typ, Größe und Träger erfassen, dazu die
+   aufgedruckte Nummer **oder** den Matrixcode – eines von beidem muss dastehen,
+   beides zusammen geht auch. Beim
    Umstieg von der Papierliste den bisherigen Zählerstand gleich mit eintragen.
 
 ## Personen aus einer CSV übernehmen
@@ -168,11 +170,13 @@ Teiletyp neben dem richtigen entstehen. Also zuerst die Typen unter
 
 ### Spalten
 
-Pflicht sind **Nummer** und **Typ**, alles andere darf fehlen:
+Pflicht ist **Typ**, dazu **Nummer oder Matrixcode** – welche der beiden
+Kennungsspalten dasteht, ist egal, aber eine von beiden braucht die Kopfzeile.
+Alles andere darf fehlen:
 
 | Spalte | Auch erkannt als | Inhalt |
 | --- | --- | --- |
-| `Nummer` | Nr, Teilenummer, Inventarnummer | `XXXX-XX/XX`, vorne vier bis zehn Ziffern; eine reine Ziffernfolge wie `10420719` wird umgesetzt |
+| `Nummer` | Nr, Teilenummer, Inventarnummer | `XXXX-XX/XX`, vorne vier bis zehn Ziffern; eine reine Ziffernfolge wie `10420719` wird umgesetzt. Darf leer bleiben, wenn die Zeile einen Matrixcode nennt |
 | `Typ` | Teiletyp, Art, Bezeichnung | Name eines angelegten Teiletyps |
 | `Größe` | Gr, Konfektionsgröße | freier Text |
 | `Träger` | Person, Zugeordnet, Besitzer | Name einer angelegten Person; leer heißt Pool |
@@ -200,7 +204,12 @@ Fehlerhafte Zeilen werden übersprungen, nicht der ganze Import. In der Vorschau
 stehen sie mit Zeilennummer und Grund; ein Filter **nur Fehler** blendet den
 Rest aus:
 
-- Nummer fehlt oder passt nicht auf `XXXX-XX/XX`
+- die Zeile nennt weder Nummer noch Matrixcode – dann ist das Teil später über
+  nichts wiederzufinden
+- eine Nummer steht da, passt aber nicht auf `XXXX-XX/XX`. Eine leere
+  Nummernzelle ist dagegen kein Fehler mehr, solange ein Matrixcode danebensteht
+- der Matrixcode gehört im Bestand zu einem Teil eines anderen Typs; ein
+  Typwechsel geht nur über den Dialog
 - Nummer, Typ und Träger stehen in der Datei zweimal genau gleich – die
   Zeilen wären nicht auseinanderzuhalten. Dieselbe Nummer mit verschiedenen
   Trägern ist dagegen in Ordnung
@@ -214,9 +223,18 @@ Rest aus:
 
 ### Wenn das Teil schon erfasst ist
 
-Wiedererkannt wird ein Teil an **Nummer, Typ und Träger zusammen** – die
-Nummer allein genügt nicht, weil mehrere Teile dieselbe tragen dürfen. Wer
+Wiedererkannt wird ein Teil zuerst über seinen **Matrixcode**: Er ist im
+ganzen Bestand eindeutig und benennt damit genau ein Stück – auch dann noch,
+wenn Träger oder Größe in der Datei anders stehen als im Bestand.
+
+Fehlt der Code, greift der Rückfall über **Nummer, Typ und Träger zusammen** –
+die Nummer allein genügt nicht, weil mehrere Teile dieselbe tragen dürfen. Wer
 gleichnamige Teile per Datei pflegt, braucht deshalb die Trägerspalte.
+
+Eine leere Nummernzelle heißt dabei „weiß ich nicht", nicht „hat keine": Die
+Nummer ist aufgedruckt und verschwindet nicht vom Kleidungsstück, bloß weil
+eine Tabelle sie nicht mitliefert. Sie wird deshalb nie durch eine leere Zelle
+gelöscht.
 
 **Überspringen** lässt das vorhandene Teil unangetastet, **Aktualisieren**
 übernimmt die Felder aus der Datei. Auch dann gilt: Geändert wird nur, was in
@@ -340,10 +358,11 @@ Gescannt werden zwei Dinge:
   Lieferung tragen dann dieselbe. Passen mehrere Teile zu einem Scan, bucht
   das Add-on nichts, sondern legt sie mit Typ, Träger, Größe und Standort
   zur Auswahl vor. Erst der Klick auf das richtige Teil bucht.
-- **Matrixcode** am Etikett. Sein Inhalt wird **nicht** ausgewertet: Was der
-  Hersteller hineingeschrieben hat, ist egal – der rohe Wert dient nur als
-  zweiter Weg zur Zuordnung. Ein unbekannter Matrixcode lässt sich im Scan-Tab
-  einem vorhandenen Teil zuordnen („anlernen").
+- **Matrixcode** am Etikett. Für die Zuordnung zählt er **als Ganzes**: Der rohe
+  Wert ist der zweite Weg zu einem Teil, unabhängig davon, was der Hersteller
+  hineingeschrieben hat. Ein unbekannter Matrixcode lässt sich im Scan-Tab
+  einem vorhandenen Teil zuordnen („anlernen") – oder es entsteht ein neues
+  Teil daraus, siehe unten.
 
 ### Erst sagen, was gescannt wird
 
@@ -400,6 +419,67 @@ mit den Ziffern: Die letzten vier sind `XX/XX`, alles davor ist der vordere
 Block. Bei mehr als acht Ziffern rutscht die Anzeige beim Tippen einmal –
 am Ende steht die Nummer richtig da.
 
+### Aus einem unbekannten Code ein Teil anlegen
+
+Findet ein Scan kein Teil, bleibt der Code als Karte **Unbekannter Code**
+stehen, bis er erledigt ist. Was dort angeboten wird, hängt an der Codeart:
+
+- Beim **Nummerncode**: **Neues Teil anlegen** – der Dialog geht mit der
+  gescannten Nummer auf.
+- Beim **Matrixcode**: **Vorhandenem Teil zuordnen** („anlernen") wie bisher,
+  daneben ebenfalls **Neues Teil anlegen** – dann geht der Dialog mit dem
+  Matrixcode im Feld auf. Der Weg ist für Kleidung gedacht, an der nur das
+  Herstelleretikett klebt und die noch gar nicht erfasst ist.
+
+Der Matrixcode bleibt dabei im ganzen Bestand eindeutig: Er ist der einzige
+Code, der ein einzelnes Stück sicher benennt, und war beim Speichern schon
+einem anderen Teil zugeordnet, wird das Anlegen abgewiesen. Die Nummer wird
+nicht aus dem Code erfunden – sie wird eingetragen, wenn eine auf dem Etikett
+steht, und bleibt sonst leer: Ein Teil braucht **eine Nummer oder einen
+Matrixcode**, nicht beides. Wer weder das eine noch das andere einträgt, wird
+abgewiesen; ohne Kennung wäre das Teil später über nichts wiederzufinden.
+
+**Was aus dem Code vorbelegt wird.** Herstelleretiketten tragen mehr als die
+Seriennummer. Ein echtes Etikett der LHD Group:
+
+```
+BO00297362TOTAL CARE21021892 / LION 20200228S/R 60602 163364
+```
+
+Darin steckt der Reihe nach: die Seriennummer, die Kennung des
+Pflegeprogramms, eine Lectra-Nummer, der Hersteller, das Herstelldatum,
+unmittelbar anschliessend die Größe und zum Schluss zwei Zahlen, deren
+Bedeutung nicht bekannt ist. Daraus liest das Add-on drei Felder:
+
+| Feld | Woran erkannt | Im Beispiel |
+| --- | --- | --- |
+| **Hersteller** | steht an seiner Stelle im Code und in der Liste bekannter Namen; übernommen wird die übliche Schreibweise | Lion |
+| **Beschaffung** | die acht Ziffern dahinter als `JJJJMMTT`, wenn sie ein echter Kalendertag zwischen 1990 und heute sind | 2020-02 |
+| **Größe** | Weite und Länge nach der Größentabelle des Herstellers – Weite `XXS` bis `3XL`, Länge `XS`, `S`, `R`, `T`, `XT`, `XXT` | S/R |
+
+Gelesen wird **positionsverankert**: Der Code wird von vorn abgetragen, und nur
+wenn der ganze Aufbau passt, kommt überhaupt etwas heraus. Ein Code, der so
+nicht gebaut ist, belegt **gar nichts** vor – lieber nichts als halbe Treffer
+aus einem fremden Format. Bisher ist ein Aufbau hinterlegt, der der Etiketten
+aus dem LHD-Pflegeprogramm „TOTAL CARE"; weitere lassen sich daneben legen.
+
+> **Die Beschaffung ist in Wahrheit der Herstellmonat.** Im Code steht, wann
+> das Teil gefertigt wurde, nicht wann es die Wehr gekauft hat. Ein eigenes
+> Feld dafür gibt es nicht, und der Herstellmonat ist die beste vorhandene
+> Näherung – wer das Beschaffungsdatum kennt, überschreibt es.
+
+Auch bei passendem Aufbau wird nur übernommen, was **zweifelsfrei** dasteht:
+Ein unbekannter Herstellername, ein unmögliches Datum oder eine Größe aus einem
+anderen System lässt genau dieses Feld leer, die übrigen bleiben. Die
+Datumsprüfung trägt dabei mehr, als sie aussieht – im selben Code steht mit der
+Lectra-Nummer eine zweite achtstellige Zahl (`21021892`), und dass daraus kein
+Datum wird, verhindert allein ihre Unmöglichkeit: Monat 18, Tag 92.
+
+Deutsche Konfektionsgrößen (`52`), Längenbuchstabe plus Zahl (`L52`) und
+Zoll-Paare (`44/32`) werden bewusst nicht gelesen – wo sie im Code stehen, ist
+nicht belegt. **Alles Vorbelegte ist im Dialog überschreibbar.** Was erkannt
+wurde, steht schon auf der Karte im Scan-Tab, bevor der Dialog aufgeht.
+
 ### Handy als Scanner koppeln
 
 Wer am Rechner bucht, dort aber keine Kamera hat:
@@ -453,6 +533,7 @@ neu starten.
 | --- | --- |
 | „Kamera nicht verfügbar" | Kein `https://` oder ein Browser ohne `BarcodeDetector`. Nummer tippen oder Handy koppeln |
 | Scan meldet „kein Teil angelegt" | Die Nummer gibt es noch nicht – erst das Teil anlegen |
+| Teil ohne Nummer nicht in der Liste | Die Suche greift auch auf den Matrixcode zu – den Code eintippen. In den Kacheln steht statt der Nummer der gekürzte Matrixcode |
 | Scan fragt „Welches Teil?" | Mehrere Teile tragen diese Nummer. Am Träger erkennen, welches gemeint ist, und auswählen – gebucht ist noch nichts |
 | Matrixcode wird nicht erkannt | Er ist noch keinem Teil zugeordnet. Im Scan-Tab unter „Unbekannter Code" anlernen |
 | Scan meldet „kein Nummerncode" | Es war ein Nummerncode eingestellt, gelesen wurde ein Herstellercode. Oben auf „Matrixcode" umstellen |

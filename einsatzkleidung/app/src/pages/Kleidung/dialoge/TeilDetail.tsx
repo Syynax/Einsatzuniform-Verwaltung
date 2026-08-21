@@ -85,9 +85,21 @@ export const TeilDetail: React.FC<Props> = ({ teilId, personen, chargen, onClose
     }
   };
 
+  /**
+   * Der Knopf „kommt zurück" bucht über denselben Weg wie der Scanner und
+   * braucht dafür einen Code. Früher war das immer die Nummer; seit ein Teil
+   * auch nur den Matrixcode tragen kann, muss die Wahl mitgehen – sonst
+   * schickte der Knopf einen leeren Code los und liefe ins Leere.
+   */
+  const rueckgabeCode = teil?.nummer
+    ? { code: teil.nummer, codeArt: 'nummer' as const }
+    : teil?.matrixCode
+      ? { code: teil.matrixCode, codeArt: 'matrix' as const }
+      : null;
+
   const loeschen = async () => {
     if (!teil) return;
-    if (!confirm(`${teil.nummer} endgültig löschen? Die Historie geht mit verloren – zum Ausmustern besser „Aussondern".`)) return;
+    if (!confirm(`${teil.bezeichnung} endgültig löschen? Die Historie geht mit verloren – zum Ausmustern besser „Aussondern".`)) return;
     await fuehreAus(async () => {
       await deleteTeil(teil.id);
       onClose();
@@ -111,7 +123,7 @@ export const TeilDetail: React.FC<Props> = ({ teilId, personen, chargen, onClose
           <div>
             <h2>{teil.typName}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
-              <span className={styles.mono} style={{ fontWeight: 700, color: 'var(--accent)' }}>{teil.nummer}</span>
+              <span className={styles.mono} style={{ fontWeight: 700, color: 'var(--accent)' }}>{teil.bezeichnung}</span>
               <StatusBadge teil={teil} />
               {teil.hinweise.map(hinweis => (
                 <span key={hinweis} className={`${styles.badge} ${teil.ampel === 'grenze' ? styles.bStop : styles.bWarn}`}>
@@ -148,7 +160,7 @@ export const TeilDetail: React.FC<Props> = ({ teilId, personen, chargen, onClose
             <section className={styles.card} style={{ marginBottom: '1.5rem' }}>
               <h3 className={styles.cardTitle} style={{ fontSize: '1rem', marginBottom: '1rem' }}>Stammdaten</h3>
               <div className={styles.detailRaster}>
-                <div><div className={styles.label}>Nummer</div><div className={styles.mono}>{teil.nummer}</div></div>
+                <div><div className={styles.label}>Nummer</div><div className={styles.mono}>{teil.nummer ?? '–'}</div></div>
                 <div><div className={styles.label}>Größe</div><div>{teil.groesse ?? '–'}</div></div>
                 <div><div className={styles.label}>Hersteller</div><div>{teil.hersteller ?? '–'}</div></div>
                 <div><div className={styles.label}>Beschaffung</div><div>{monat(teil.beschaffung)}</div></div>
@@ -213,9 +225,20 @@ export const TeilDetail: React.FC<Props> = ({ teilId, personen, chargen, onClose
               {teil.status === 'waesche' ? (
                 <button
                   className={`${styles.btnPrimary} ${styles.btnBlock}`}
-                  onClick={() => void fuehreAus(() => scanne(teil.nummer, 'zurueck'))}
+                  onClick={() => {
+                    if (!rueckgabeCode) return;
+                    // Die Wahl gleich mitschicken: Hier steht genau ein Teil
+                    // offen, es ist also nichts zu entscheiden. Ohne `teilId`
+                    // liefe eine mehrfach vergebene Nummer in die Rückfrage
+                    // „Welches Teil?" – und die zeigt dieses Fenster nicht an,
+                    // der Knopf täte also scheinbar nichts.
+                    void fuehreAus(() => scanne(rueckgabeCode.code, 'zurueck', {
+                      codeArt: rueckgabeCode.codeArt,
+                      teilId: teil.id,
+                    }));
+                  }}
                   type="button"
-                  disabled={busy}
+                  disabled={busy || rueckgabeCode === null}
                 >
                   Einzeln zurückmelden (+1)
                 </button>

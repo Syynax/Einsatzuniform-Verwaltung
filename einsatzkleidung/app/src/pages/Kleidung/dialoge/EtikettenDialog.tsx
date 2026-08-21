@@ -54,22 +54,38 @@ const QrCode: React.FC<{ text: string; className?: string }> = ({ text, classNam
   );
 };
 
+/** Ein Teil, dessen Nummer feststeht – nur so eines kann auf den Bogen. */
+type TeilMitNummer = TeilMitDetails & { nummer: string };
+
 export const EtikettenDialog: React.FC<Props> = ({ teile, onClose }) => {
   const [spalten, setSpalten] = useState(3);
   const [mitTraeger, setMitTraeger] = useState(true);
   const [nurOhneCode, setNurOhneCode] = useState(false);
   const [entfernt, setEntfernt] = useState<number[]>([]);
 
-  const auswahl = useMemo(
-    () => teile.filter(t =>
-      t.status !== 'ausgesondert'
-      && !entfernt.includes(t.id)
-      && (!nurOhneCode || !t.matrixCode),
-    ),
-    [teile, entfernt, nurOhneCode],
+  /**
+   * Der Bogen druckt die Nummer als QR-Code – ohne Nummer gäbe es nichts zu
+   * drucken. Solche Teile fallen deshalb heraus, und das ist kein Mangel:
+   * Sie tragen zwingend einen Matrixcode und sind damit längst scannbar. Ein
+   * eigenes Etikett dazu schüfe zwei Codes an einem Kleidungsstück, die beide
+   * gültig wären – und beim nächsten Scan entschiede der Zufall, welcher
+   * gelesen wird.
+   */
+  const bedruckbar = useMemo(
+    () => teile.filter((t): t is TeilMitNummer => t.status !== 'ausgesondert' && Boolean(t.nummer)),
+    [teile],
   );
 
-  const ohneCode = teile.filter(t => t.status !== 'ausgesondert' && !t.matrixCode).length;
+  const auswahl = useMemo(
+    () => bedruckbar.filter(t => !entfernt.includes(t.id) && (!nurOhneCode || !t.matrixCode)),
+    [bedruckbar, entfernt, nurOhneCode],
+  );
+
+  const ohneCode = bedruckbar.filter(t => !t.matrixCode).length;
+
+  // Weggelassen wird nur, was auch sichtbar weggelassen wird: Ein stillschweigend
+  // kürzerer Bogen liesse jemanden vergeblich nach den fehlenden Etiketten suchen.
+  const ohneNummer = teile.filter(t => t.status !== 'ausgesondert' && !t.nummer).length;
 
   // Der Dialog hängt an `body` statt im App-Baum: Beim Drucken wird schlicht
   // `#root` ausgeblendet, und der Bogen bleibt als Einziges übrig. Innerhalb
@@ -138,6 +154,14 @@ export const EtikettenDialog: React.FC<Props> = ({ teile, onClose }) => {
           {auswahl.length} {auswahl.length === 1 ? 'Etikett' : 'Etiketten'} auf dem Bogen.
           Ein Klick auf das ✕ nimmt eines heraus. Gedruckt wird genau das, was hier steht.
         </p>
+
+        {ohneNummer > 0 && (
+          <p className={styles.soft}>
+            {ohneNummer} {ohneNummer === 1 ? 'Teil trägt' : 'Teile tragen'} keine Nummer – {ohneNummer === 1 ? 'es steht' : 'sie stehen'}{' '}
+            nicht auf dem Bogen. {ohneNummer === 1 ? 'Es trägt' : 'Sie tragen'} den Code des Herstellers
+            und {ohneNummer === 1 ? 'braucht' : 'brauchen'} kein eigenes Etikett.
+          </p>
+        )}
 
         {auswahl.length === 0 ? (
           <div className={styles.emptyState}>

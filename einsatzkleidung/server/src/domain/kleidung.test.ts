@@ -5,6 +5,8 @@ import {
   ampelVon,
   auswertung,
   brauchtAufmerksamkeit,
+  IDENT_HINWEIS,
+  istIdentifizierbar,
   istNummer,
   mitDetails,
   nachDringlichkeit,
@@ -16,6 +18,7 @@ import {
   plusTage,
   pruefStatusVon,
   stammdatenDiff,
+  teilBezeichnung,
   pruefungFaellig,
   verbleibendeWaeschen,
   warnschwelleVon,
@@ -124,6 +127,46 @@ test('Matrixcode wird nur gesäubert, nicht ausgewertet', () => {
   assert.equal(normalisiereMatrixCode('x'.repeat(201)), null, 'zu lang');
 });
 
+// --- Benennung und Identifizierbarkeit -----------------------------------
+
+test('Ein Teil heisst im Fliesstext nach seiner Nummer', () => {
+  // Die aufgedruckte Nummer ist die Bezeichnung, die am Spind benutzt wird –
+  // ein vorhandener Matrixcode ändert daran nichts.
+  assert.equal(teilBezeichnung({ id: 7, nummer: '1042-07/19', matrixCode: null }), '1042-07/19');
+  assert.equal(teilBezeichnung({ id: 7, nummer: '1042-07/19', matrixCode: 'ABC123' }), '1042-07/19');
+});
+
+test('Ohne Nummer tritt ein kurzer Matrixcode ungekürzt an ihre Stelle', () => {
+  assert.equal(teilBezeichnung({ id: 7, nummer: null, matrixCode: 'ABC123' }), 'ABC123');
+  // Genau an der Grenze wird noch nicht gekürzt.
+  assert.equal(teilBezeichnung({ id: 7, nummer: null, matrixCode: '12345678901234' }), '12345678901234');
+});
+
+test('Ein langer Matrixcode wird vorne behalten und hinten gekürzt', () => {
+  // Am echten LHD-Etikett steht die Seriennummer am Anfang; das Ende des Codes
+  // sieht bei einer ganzen Lieferung gleich aus und benennt deshalb nichts.
+  const etikett = 'BO00297362TOTAL CARE21021892 / LION 20200228S/R 60602 163364';
+  assert.equal(teilBezeichnung({ id: 7, nummer: null, matrixCode: etikett }), 'BO00297362TOTA…');
+});
+
+test('Ohne Nummer und ohne Code bleibt nur die Id als Notbehelf', () => {
+  // Nur für Altdaten: Nach der Regel „Nummer oder Matrixcode" kann so ein Teil
+  // nicht mehr entstehen.
+  assert.equal(teilBezeichnung({ id: 7, nummer: null, matrixCode: null }), 'Teil #7');
+});
+
+test('Identifizierbar ist ein Teil, sobald eines von beidem dasteht', () => {
+  assert.equal(istIdentifizierbar('1042-07/19', 'ABC123'), true);
+  assert.equal(istIdentifizierbar('1042-07/19', null), true);
+  assert.equal(istIdentifizierbar(null, 'ABC123'), true);
+  assert.equal(istIdentifizierbar(null, null), false);
+});
+
+test('Der Hinweis benennt beide Wege, nicht nur die Nummer', () => {
+  assert.match(IDENT_HINWEIS, /Nummer/);
+  assert.match(IDENT_HINWEIS, /Matrixcode/);
+});
+
 // --- Waschzähler ---------------------------------------------------------
 
 test('Ampel springt an Warnschwelle und Höchstzahl um', () => {
@@ -205,6 +248,16 @@ test('Ein Teil wird um Typ, Träger und Charge ergänzt', () => {
   assert.equal(detail.verbleibend, 40);
 });
 
+test('Ein angereichertes Teil bringt seine Bezeichnung mit', () => {
+  const mitNummer = mitDetails(teil(), nachschlag);
+  assert.equal(mitNummer.bezeichnung, '1042-07/19');
+
+  // Ohne Nummer tritt der Matrixcode an ihre Stelle. Genau dafür gibt es das
+  // Feld: Die Oberfläche zeigt es an, ohne die beiden Fälle zu kennen.
+  const nurCode = mitDetails(teil({ nummer: null, matrixCode: 'BO00297362TOTAL CARE' }), nachschlag);
+  assert.equal(nurCode.bezeichnung, 'BO00297362TOTA…');
+});
+
 test('Ein Teil mit gelöschtem Typ verschwindet nicht', () => {
   const detail = mitDetails(teil({ typId: 99 }), nachschlag);
   assert.equal(detail.typName, 'Unbekannter Typ');
@@ -243,6 +296,19 @@ test('Handlungsbedarf sortiert Grenze vor Prüfung vor Warnung', () => {
   ].sort(nachDringlichkeit);
 
   assert.deepEqual(liste.map(t => t.id), [2, 3, 1, 4]);
+});
+
+test('Bei gleichem Rang entscheidet die Bezeichnung, auch ohne Nummer', () => {
+  // Früher stand hier `a.nummer.localeCompare(b.nummer)` – ein Teil ohne
+  // Nummer hätte die Sortierung mit einem TypeError abgebrochen und die ganze
+  // Übersicht mitgenommen, nicht bloss diese eine Zeile.
+  const liste = [
+    mitDetails(teil({ id: 1, nummer: null, matrixCode: 'ZZZ-999', waschzaehler: 50, ...GEPRUEFT }), nachschlag),
+    mitDetails(teil({ id: 2, nummer: '0002-01/20', waschzaehler: 50, ...GEPRUEFT }), nachschlag),
+    mitDetails(teil({ id: 3, nummer: null, matrixCode: 'AAA-111', waschzaehler: 50, ...GEPRUEFT }), nachschlag),
+  ].sort(nachDringlichkeit);
+
+  assert.deepEqual(liste.map(t => t.bezeichnung), ['0002-01/20', 'AAA-111', 'ZZZ-999']);
 });
 
 // --- Chargen -------------------------------------------------------------

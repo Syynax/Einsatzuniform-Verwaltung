@@ -30,7 +30,10 @@ export const KleidungTab: React.FC<Props> = ({ teile, typen, onTeil, onNeu, onTy
       if (statusFilter === 'alle' ? teil.status === 'ausgesondert' : teil.status !== statusFilter) return false;
       if (nurOhneCode && teil.matrixCode) return false;
       if (!begriff) return true;
-      return teil.nummer.toLowerCase().includes(begriff)
+      // Der Matrixcode gehört mit in die Suche: Ein Teil, das nur den Code des
+      // Herstellers trägt, wäre über die Nummer sonst gar nicht zu finden.
+      return (teil.nummer?.toLowerCase().includes(begriff) ?? false)
+        || (teil.matrixCode?.toLowerCase().includes(begriff) ?? false)
         || teil.typName.toLowerCase().includes(begriff)
         || (teil.personName?.toLowerCase().includes(begriff) ?? false)
         || (teil.groesse?.toLowerCase().includes(begriff) ?? false);
@@ -73,7 +76,7 @@ export const KleidungTab: React.FC<Props> = ({ teile, typen, onTeil, onNeu, onTy
             type="search"
             value={suche}
             onChange={e => setSuche(e.target.value)}
-            placeholder="Nummer, Träger oder Typ"
+            placeholder="Nummer, Matrixcode, Träger oder Typ"
             aria-label="Kleidungsstücke durchsuchen"
           />
           <button
@@ -146,7 +149,7 @@ export const KleidungTab: React.FC<Props> = ({ teile, typen, onTeil, onNeu, onTy
             >
               <div className={styles.teilKopf}>
                 <div>
-                  <div className={styles.teilNummer}>{teil.nummer}</div>
+                  <div className={styles.teilNummer}>{teil.bezeichnung}</div>
                   <div className={styles.soft}>
                     {teil.typName}{teil.groesse ? ` · Gr. ${teil.groesse}` : ''}
                   </div>

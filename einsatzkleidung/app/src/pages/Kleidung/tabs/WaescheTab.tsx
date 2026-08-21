@@ -183,7 +183,7 @@ export const WaescheTab: React.FC<Props> = ({
                 <thead>
                   <tr>
                     {charge.status !== 'abgeschlossen' && <th title="Kommt zurück">zurück</th>}
-                    <th>Nummer</th><th>Teil</th><th>Träger</th><th>Wäschen</th>
+                    <th>Kennung</th><th>Teil</th><th>Träger</th><th>Wäschen</th>
                     <th>{charge.status === 'abgeschlossen' ? '' : 'Nach Rückgabe'}</th>
                     <th></th>
                   </tr>
@@ -202,11 +202,11 @@ export const WaescheTab: React.FC<Props> = ({
                               checked={kommtZurueck}
                               onChange={() => wechsleTeil(teil.id)}
                               disabled={busy}
-                              aria-label={`${teil.nummer} kommt zurück`}
+                              aria-label={`${teil.bezeichnung} kommt zurück`}
                             />
                           </td>
                         )}
-                        <td className={`${styles.mono} ${styles.klickbar}`} onClick={() => onTeil(teil.id)}>{teil.nummer}</td>
+                        <td className={`${styles.mono} ${styles.klickbar}`} onClick={() => onTeil(teil.id)}>{teil.bezeichnung}</td>
                         <td>{teil.typName}</td>
                         <td><TraegerBadge teil={teil} /></td>
                         <td className={styles.num}>

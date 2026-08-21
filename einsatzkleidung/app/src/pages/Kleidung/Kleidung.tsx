@@ -10,6 +10,7 @@ import { WaescheTab } from './tabs/WaescheTab';
 import { PersonenTab } from './tabs/PersonenTab';
 import { AuswertungTab } from './tabs/AuswertungTab';
 import { TeilDialog } from './dialoge/TeilDialog';
+import type { TeilVorgabe } from './dialoge/TeilDialog';
 import { TeilDetail } from './dialoge/TeilDetail';
 import { PersonDialog } from './dialoge/PersonDialog';
 import { PersonenImportDialog } from './dialoge/PersonenImportDialog';
@@ -40,7 +41,7 @@ export const Kleidung: React.FC = () => {
   const scannen = useScannen(daten.neuLaden);
   const kopplung = useScanKopplung(scannen.verarbeite);
 
-  const [teilDialog, setTeilDialog] = useState<{ teil: TeilMitDetails | null; nummer?: string } | null>(null);
+  const [teilDialog, setTeilDialog] = useState<{ teil: TeilMitDetails | null; vorgabe?: TeilVorgabe } | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [personDialog, setPersonDialog] = useState<{ person: PersonMitAusstattung | null } | null>(null);
   const [importOffen, setImportOffen] = useState(false);
@@ -123,7 +124,7 @@ export const Kleidung: React.FC = () => {
           onAenderung={daten.neuLaden}
           onTeil={setDetailId}
           onNeueCharge={() => setChargeDialog({ charge: null })}
-          onNeuesTeil={nummer => setTeilDialog({ teil: null, nummer })}
+          onNeuesTeil={vorgabe => setTeilDialog({ teil: null, vorgabe })}
         />
       )}
 
@@ -154,7 +155,7 @@ export const Kleidung: React.FC = () => {
       {teilDialog && (
         <TeilDialog
           teil={teilDialog.teil}
-          nummerVorgabe={teilDialog.nummer}
+          vorgabe={teilDialog.vorgabe}
           typen={daten.typen}
           personen={daten.personen}
           onClose={() => setTeilDialog(null)}

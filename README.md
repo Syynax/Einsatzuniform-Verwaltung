@@ -149,4 +149,4 @@ in einem Cookie – der Ingress-Pfad wechselt, ein Cookie-Path liefe ins Leere.
 
 ## Änderungen
 
-Siehe **[einsatzkleidung/CHANGELOG.md](einsatzkleidung/CHANGELOG.md)**. Aktuell: **1.3.1**.
+Siehe **[einsatzkleidung/CHANGELOG.md](einsatzkleidung/CHANGELOG.md)**. Aktuell: **1.4.0**.

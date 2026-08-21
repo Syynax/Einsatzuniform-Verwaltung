@@ -2,8 +2,12 @@
  * Kleidungsstücke aus einer CSV übernehmen.
  *
  * Gleicher Zuschnitt wie der Personenimport: erst prüfen, dann übernehmen,
- * beides durch dieselbe Analyse. Der Schlüssel ist hier die aufgedruckte
- * Nummer zusammen mit Typ und Träger – die Nummer allein ist nicht eindeutig.
+ * beides durch dieselbe Analyse.
+ *
+ * Wiedererkannt wird ein Teil auf zwei Wegen. Der bessere ist der Matrixcode:
+ * Er ist bestandsweit eindeutig und benennt damit genau ein Stück. Nur wo er
+ * fehlt, greift der alte Weg über Nummer, Typ und Träger zusammen – der darf
+ * mehrdeutig sein und endet dann in „bitte im Dialog ändern".
  *
  * Typ und Träger werden über ihren Namen aufgelöst und niemals still angelegt.
  * Ein Tippfehler in der Typspalte soll eine Fehlerzeile ergeben und keinen
@@ -13,7 +17,14 @@
 import type { Kleidungsstueck, Person, Teiletyp } from '../types/kleidung';
 import { parseCsv } from '../utils/csv';
 import { datumAus, monatAus, namensSchluessel, zahlAus } from '../utils/eingaben';
-import { naechstePruefungAus, normalisiereMatrixCode, normalisiereNummer } from './kleidung';
+import {
+  IDENT_HINWEIS,
+  istIdentifizierbar,
+  naechstePruefungAus,
+  normalisiereMatrixCode,
+  normalisiereNummer,
+  teilBezeichnung,
+} from './kleidung';
 
 export type TeileImportModus = 'ueberspringen' | 'aktualisieren';
 
@@ -21,7 +32,11 @@ export type TeilImportBefund = 'neu' | 'aktualisiert' | 'unveraendert' | 'uebers
 
 /** Nur die Felder, die in der Datei stehen. Fehlende bleiben unangetastet. */
 export interface TeilWerte {
-  nummer: string;
+  /**
+   * Die gelesene Nummer, oder null, wenn die Zeile keine nennt. Null heisst
+   * hier „weiss ich nicht", nicht „hat keine" – siehe `aktualisiereTeil`.
+   */
+  nummer: string | null;
   typId: number;
   matrixCode?: string | null;
   groesse?: string | null;
@@ -89,13 +104,18 @@ function findeSpalte(spalten: string[], feld: Feld): string | null {
  * „ueberjacke hupf teil1" gefunden werden.
  */
 /**
- * Woran der Import ein Teil wiedererkennt. Die Nummer allein reicht nicht:
- * Auf vielen Etiketten steht die Nummer der Lieferung, nicht die des Stücks.
- * Typ und Träger kommen dazu – dieselben Merkmale, an denen auch am Spind
- * zwei gleiche Jacken auseinandergehalten werden.
+ * Der Rückfall-Schlüssel, wenn kein Matrixcode da ist. Die Nummer allein
+ * reicht nicht: Auf vielen Etiketten steht die Nummer der Lieferung, nicht die
+ * des Stücks. Typ und Träger kommen dazu – dieselben Merkmale, an denen auch
+ * am Spind zwei gleiche Jacken auseinandergehalten werden.
+ *
+ * Die Nummer darf null sein, damit die Signatur den kommenden Typwechsel
+ * überlebt. Aufgerufen wird die Funktion dann trotzdem nicht: Ohne Nummer
+ * trägt dieser Schlüssel nichts, was ein Teil benennt, und der Aufrufer
+ * überspringt ihn.
  */
-export const teilSchluessel = (nummer: string, typId: number, personId: number | null): string =>
-  `${nummer}|${typId}|${personId ?? ''}`;
+export const teilSchluessel = (nummer: string | null, typId: number, personId: number | null): string =>
+  `${nummer ?? ''}|${typId}|${personId ?? ''}`;
 
 const typSchluessel = (name: string): string =>
   name
@@ -109,7 +129,9 @@ const typSchluessel = (name: string): string =>
 
 /** Gleichstand prüfen: Nur was die Datei mitbringt, zählt. */
 function istUnveraendert(teil: Kleidungsstueck, werte: TeilWerte): boolean {
-  if (teil.nummer !== werte.nummer) return false;
+  // Eine fehlende Nummer ist kein Unterschied, sondern eine Auslassung – die
+  // Datei sagt nichts über sie, also kann sie auch nichts ändern.
+  if (werte.nummer !== null && teil.nummer !== werte.nummer) return false;
   if (teil.typId !== werte.typId) return false;
 
   const felder = [
@@ -127,7 +149,9 @@ export function neuesTeilAus(werte: TeilWerte, id: number, typ: Teiletyp, jetzt:
   const letztePruefung = werte.letztePruefung ?? null;
   return {
     id,
-    nummer: werte.nummer,
+    // Nennt die Zeile keine Nummer, bekommt das Teil keine – dass es dann
+    // zwingend einen Matrixcode trägt, hat die Analyse schon sichergestellt.
+    nummer: werte.nummer ?? null,
     matrixCode: werte.matrixCode ?? null,
     typId: typ.id,
     groesse: werte.groesse ?? null,
@@ -154,7 +178,13 @@ export function aktualisiereTeil(teil: Kleidungsstueck, werte: TeilWerte, typ: T
 
   return {
     ...teil,
-    nummer: werte.nummer,
+    // Hier weicht die Nummer bewusst von allen anderen Spalten ab: Eine leere
+    // Zelle löscht sie nicht. Bei `matrixCode` und `standort` heisst leer
+    // „entfernen", denn beides ist etwas, das wir vergeben und wieder
+    // zurücknehmen. Die Nummer ist aufgedruckt – sie verschwindet nicht vom
+    // Kleidungsstück, bloss weil sie in einer Tabelle nicht mitgeliefert
+    // wurde. Eine leere Zelle heisst deshalb „weiss ich nicht".
+    nummer: werte.nummer ?? teil.nummer,
     typId: typ.id,
     matrixCode: uebernimm(werte.matrixCode, teil.matrixCode),
     groesse: uebernimm(werte.groesse, teil.groesse),
@@ -197,8 +227,16 @@ export function analysiereTeileImport(
     if (treffer) spalten[feld] = treffer;
   }
 
-  if (!spalten.nummer) {
-    return { ...leer, problem: 'Keine Nummernspalte gefunden. Die Kopfzeile braucht "Nummer".' };
+  // Eine der beiden Kennungsspalten muss da sein, welche ist egal: Ohne
+  // Nummer und ohne Matrixcode enthält die Datei keine Spalte, an der sich ein
+  // Teil festmachen liesse – dann ist nicht die einzelne Zeile falsch, sondern
+  // die ganze Datei die falsche.
+  if (!spalten.nummer && !spalten.matrixCode) {
+    return {
+      ...leer,
+      problem: 'Keine Nummernspalte und keine Matrixcode-Spalte gefunden.'
+        + ' Die Kopfzeile braucht "Nummer" oder "Matrixcode".',
+    };
   }
   if (!spalten.typ) {
     return { ...leer, problem: 'Keine Typspalte gefunden. Die Kopfzeile braucht "Typ".' };
@@ -221,6 +259,11 @@ export function analysiereTeileImport(
   // die auch der Scan dem Anwender vorlegt.
   const nachSchluessel = new Map<string, Kleidungsstueck[]>();
   for (const teil of bestand.teile) {
+    // Teile ohne Nummer gehören nicht in diesen Index: Ihr Schlüssel wäre
+    // „|1|" und würde alle nummernlosen Teile desselben Typs im Pool zu einem
+    // Haufen zusammenwerfen, aus dem der Import nur noch raten könnte. Sie
+    // werden ausschliesslich über den Matrixcode gefunden.
+    if (!teil.nummer) continue;
     const schluessel = teilSchluessel(teil.nummer, teil.typId, teil.personId);
     const bisher = nachSchluessel.get(schluessel);
     if (bisher) bisher.push(teil);
@@ -253,14 +296,19 @@ export function analysiereTeileImport(
       werte: null,
     });
 
-    const nummer = rohNummer ? normalisiereNummer(rohNummer) : null;
-    if (!nummer) {
-      zeilen.push(fehlerZeile(
-        rohNummer
-          ? `"${rohNummer}" ist keine gültige Nummer. Erwartet wird das Muster XXXX-XX/XX, vorne mit vier bis zehn Ziffern.`
-          : 'Keine Nummer in der Zeile.',
-      ));
-      continue;
+    // Nur noch eine Formprüfung, keine Pflichtprüfung: Beanstandet wird eine
+    // Nummer, die dasteht und unlesbar ist. Ob überhaupt eine Kennung in der
+    // Zeile steht, entscheidet sich erst nach dem Matrixcode-Block – vorher
+    // wüssten wir es gar nicht.
+    let nummer: string | null = null;
+    if (rohNummer) {
+      nummer = normalisiereNummer(rohNummer);
+      if (!nummer) {
+        zeilen.push(fehlerZeile(
+          `"${rohNummer}" ist keine gültige Nummer. Erwartet wird das Muster XXXX-XX/XX, vorne mit vier bis zehn Ziffern.`,
+        ));
+        continue;
+      }
     }
 
     const typ = nachTyp.get(typSchluessel(rohTyp));
@@ -302,13 +350,53 @@ export function analysiereTeileImport(
           const inDateiZeile = matrixInDatei.get(code);
           if (inDateiZeile !== undefined) {
             fehlerhaft = `Matrixcode steht schon in Zeile ${inDateiZeile}.`;
-          } else if (belegt && belegt.nummer !== nummer) {
-            fehlerhaft = `Matrixcode gehört schon zu ${belegt.nummer}.`;
+          } else if (belegt && belegt.nummer && nummer && belegt.nummer !== nummer) {
+            // Ein Widerspruch ist es nur, wenn beide Seiten eine Nummer nennen
+            // und die nicht dieselbe ist – dann klebt der Code offenbar am
+            // falschen Teil. Fehlt sie auf einer Seite, widerspricht nichts:
+            // Das ist der Fall „wir kennen jetzt die Nummer" (Bestandsteil
+            // ohne Nummer) beziehungsweise „die Datei nennt sie nicht".
+            fehlerhaft = `Matrixcode gehört schon zu ${teilBezeichnung(belegt)}.`;
           } else {
             werte.matrixCode = code;
           }
         }
       }
+    }
+
+    // Jetzt erst steht fest, ob die Zeile überhaupt ein Teil benennt. Früher
+    // war das die Nummernprüfung; seit „Nummer oder Matrixcode" muss es beides
+    // zusammen sein.
+    if (!fehlerhaft && !istIdentifizierbar(nummer, werte.matrixCode ?? null)) {
+      zeilen.push(fehlerZeile(IDENT_HINWEIS));
+      continue;
+    }
+
+    // Der Matrixcode ist bestandsweit eindeutig und trifft deshalb genau ein
+    // Teil – auch dann noch, wenn Träger oder Typ in der Datei anders stehen
+    // als im Bestand. Beim Träger ist das erwünscht: Die Datei bringt den
+    // neuen Stand, und der neue Stand ist eben der Unterschied.
+    const ueberMatrix = werte.matrixCode ? matrixBelegt.get(werte.matrixCode) : undefined;
+
+    // Beim Typ ist es das nicht. Ein Teiletyp bestimmt Prüffrist, Waschgrenze
+    // und Ampel; ihn zu wechseln heisst, dass ein anderes Kleidungsstück
+    // gemeint ist, und nicht, dass sich dasselbe geändert hat. Über den
+    // Rückfall-Schlüssel konnte das nie passieren, weil der Typ dort im
+    // Schlüssel steckt und ein abweichender Typ gar nicht erst trifft. Der
+    // Matrixcode trifft trotzdem – diese Prüfung ersetzt die Sicherung, die
+    // dabei wegfällt.
+    //
+    // Stillschweigend übernehmen wäre hier besonders teuer: `aktualisiereTeil`
+    // setzt den Waschzähler eines nicht waschbaren Typs auf 0, ein Vertipper
+    // in der Typspalte löschte also den Nachweis eines Teils mit Waschgrenze.
+    // Aus demselben Grund legt der Import auch Typen und Träger nie still an.
+    if (!fehlerhaft && ueberMatrix && ueberMatrix.typId !== typ.id) {
+      const bisher = bestand.typen.find(t => t.id === ueberMatrix.typId)?.name ?? `Typ ${ueberMatrix.typId}`;
+      zeilen.push(fehlerZeile(
+        `Der Matrixcode gehört zu ${teilBezeichnung(ueberMatrix)} vom Typ "${bisher}",`
+        + ` die Datei nennt "${typ.name}". Ein Typwechsel geht nur über den Dialog.`,
+      ));
+      continue;
     }
 
     if (!fehlerhaft && spalten.beschaffung) {
@@ -362,27 +450,41 @@ export function analysiereTeileImport(
 
     // Zwei Zeilen, die auf dasselbe Teil zeigen, kann der Import nicht
     // auseinanderhalten – er wüsste nicht, welche gilt.
-    const schluessel = teilSchluessel(nummer, typ.id, werte.personId ?? null);
-    const schonInDatei = inDatei.get(schluessel);
-    if (schonInDatei !== undefined) {
-      zeilen.push(fehlerZeile(
-        `Nummer, Typ und Träger stehen genauso schon in Zeile ${schonInDatei}.`
-        + ' Mehrere gleiche Teile brauchen unterschiedliche Träger.',
-      ));
-      continue;
-    }
+    const schluessel = nummer !== null ? teilSchluessel(nummer, typ.id, werte.personId ?? null) : null;
+    if (schluessel !== null) {
+      const schonInDatei = inDatei.get(schluessel);
+      if (schonInDatei !== undefined) {
+        zeilen.push(fehlerZeile(
+          `Nummer, Typ und Träger stehen genauso schon in Zeile ${schonInDatei}.`
+          + ' Mehrere gleiche Teile brauchen unterschiedliche Träger.',
+        ));
+        continue;
+      }
 
-    // Erst hier vormerken: Eine fehlerhafte Zeile soll die Nummer nicht für
-    // eine spätere, saubere Zeile blockieren.
-    inDatei.set(schluessel, zeile.nummer);
+      // Erst hier vormerken: Eine fehlerhafte Zeile soll die Nummer nicht für
+      // eine spätere, saubere Zeile blockieren.
+      inDatei.set(schluessel, zeile.nummer);
+    }
+    // Ohne Nummer wird hier nichts geprüft und nichts vorgemerkt: Der
+    // Schlüssel bestünde nur aus Typ und Träger und hielte zwei verschiedene
+    // Jacken derselben Person für eine Dublette. Dass sich zwei nummernlose
+    // Zeilen nicht doppeln, sichert die Matrixcode-Prüfung weiter oben – und
+    // ohne Nummer hat die Zeile zwingend einen Code.
     if (werte.matrixCode) matrixInDatei.set(werte.matrixCode, zeile.nummer);
 
     const personName = werte.personId
       ? bestand.personen.find(p => p.id === werte.personId)?.name ?? null
       : null;
 
-    const passende = nachSchluessel.get(schluessel) ?? [];
-    const grund = { zeile: zeile.nummer, nummer, typName: typ.name, personName, werte };
+    // Der Treffer über den Matrixcode gilt, sonst der Rückfall über den
+    // Dreier-Schlüssel. Der Code benennt immer genau ein Teil, der
+    // Dreier-Schlüssel darf mehrdeutig sein – deshalb landet nur der zweite
+    // Weg unten in der „bitte im Dialog ändern"-Bremse. Ein abweichender Typ
+    // ist an dieser Stelle schon ausgeschlossen.
+    const passende = ueberMatrix
+      ? [ueberMatrix]
+      : (schluessel !== null ? nachSchluessel.get(schluessel) ?? [] : []);
+    const grund = { zeile: zeile.nummer, nummer: nummer ?? rohNummer, typName: typ.name, personName, werte };
 
     if (passende.length === 0) {
       zeilen.push({ ...grund, befund: 'neu', meldung: null, teilId: null });

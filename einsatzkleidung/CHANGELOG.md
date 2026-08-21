@@ -1,5 +1,69 @@
 # Changelog
 
+## 1.4.0
+
+Die aufgedruckte Nummer war bisher Pflicht. Das trifft auf die Wirklichkeit
+nicht zu: Manche Hersteller bringen nur noch einen Matrixcode auf, und ein Teil
+mit Herstelleretikett liess sich deshalb gar nicht anlegen – der Knopf „Neues
+Teil anlegen" im Scan-Tab öffnete den Dialog mit gefülltem Code und leerer
+Nummer, und das Speichern wurde abgewiesen.
+
+- **Nummer und Matrixcode sind beide optional – aber eines von beiden muss da
+  sein.** Ein Teil ohne jede Kennung liesse sich weder scannen noch am Spind
+  zuordnen; es wäre ein Datensatz ohne Kleidungsstück dahinter. Die Regel gilt
+  am Dialog, beim Ändern, beim CSV-Import und am Matrixcode-Endpunkt
+- **Der Matrixcode lässt sich nicht mehr von einem Teil entfernen, das keine
+  Nummer hat.** Das war die stille Lücke: Der Endpunkt zum Anlernen darf den
+  Code auch löschen, und bei einem nummernlosen Teil nahm das ihm die letzte
+  Kennung – es blieb im Bestand stehen und war über keinen Scan mehr zu
+  erreichen
+- **Wo bisher die Nummer stand, steht jetzt eine Bezeichnung**: die Nummer,
+  sonst der gekürzte Matrixcode. Gekürzt wird vorne, weil dort die
+  Seriennummer steht – das Ende eines Herstellercodes sieht bei einer ganzen
+  Lieferung gleich aus. Das betrifft Kacheln, Listen, Verlauf und alle
+  Meldungen des Scanners; bereits gespeicherte Verlaufseinträge bleiben
+  unverändert stehen
+- **Die Suche greift zusätzlich auf den Matrixcode zu.** Ein Teil, das nur den
+  Code des Herstellers trägt, war über die Nummernsuche sonst nicht auffindbar
+- **Teile ohne Nummer stehen nicht auf dem Etikettenbogen.** Sie tragen
+  zwingend einen Matrixcode und sind damit schon scannbar; ein zweites Etikett
+  schüfe zwei gültige Codes am selben Kleidungsstück. Wie viele übergangen
+  wurden, steht sichtbar über dem Bogen
+- **Der CSV-Import kommt ohne Nummernspalte aus**, solange eine
+  Matrixcode-Spalte dasteht, und erkennt ein Teil zuerst über seinen
+  Matrixcode wieder – der ist eindeutig, die Nummer darf es nicht sein. Nennt
+  die Datei zu einem Code einen anderen Teiletyp als der Bestand, ist das eine
+  Fehlerzeile: Ein Typwechsel geht nur über den Dialog
+- In der Teile-Liste sortieren Teile ohne Nummer ans **Ende**, damit die Liste
+  nicht mit einem Block Matrixcodes aufgeht
+- Ein Teil ohne Nummer liess sich im Detail nicht mehr einzeln aus der Wäsche
+  zurückmelden – der Knopf schickte die leere Nummer los. Er weicht jetzt auf
+  den Matrixcode aus
+
+- **Aus einem unbekannten Matrixcode lässt sich ein neues Teil anlegen.** Auf
+  der Karte im Scan-Tab steht der Knopf jetzt neben dem bisherigen „Anlernen":
+  Der Dialog geht mit dem Matrixcode im Feld auf. Gedacht ist das für
+  Kleidung, an der nur das Herstelleretikett klebt. Anlernen bleibt der
+  naheliegende Weg, solange das Teil schon im Bestand steht; der Matrixcode
+  bleibt dabei wie bisher im ganzen Bestand eindeutig
+- **Hersteller, Herstellmonat und Größe werden aus dem Code vorgeschlagen.**
+  Herstelleretiketten tragen mehr als die Seriennummer – aus
+  `BO00297362TOTAL CARE21021892 / LION 20200228S/R 60602 163364` liest das
+  Add-on Lion, 02/2020 und Größe S/R und belegt die Felder damit vor. Was
+  erkannt wurde, steht schon auf der Karte, bevor der Dialog aufgeht, und ist
+  dort überschreibbar
+- Gelesen wird **positionsverankert und nur bei bekanntem Aufbau**: Ein Code
+  fremder Bauart belegt gar nichts vor, statt halbe Treffer zu liefern. Auch
+  bei passendem Aufbau bleibt jedes Feld leer, das sich nicht zweifelsfrei
+  lesen lässt – geraten wird nie, und ein unlesbarer Code hält das Anlegen
+  nicht auf. Die Datumsprüfung trägt dabei die Hauptlast: Im selben Code steht
+  mit der Lectra-Nummer eine zweite achtstellige Zahl, aus der kein Datum
+  werden darf
+- **Der Herstellmonat wird als Beschaffung eingetragen.** Das ist streng
+  genommen etwas anderes – im Code steht, wann das Teil gefertigt wurde, nicht
+  wann es gekauft wurde. Ein eigenes Feld dafür gibt es nicht, und der
+  Herstellmonat ist die beste vorhandene Näherung
+
 ## 1.3.1
 
 Nachbesserung an 1.3.0: Der längere vordere Block hat die Codeerkennung

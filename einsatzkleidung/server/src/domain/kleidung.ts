@@ -78,6 +78,80 @@ export function normalisiereMatrixCode(eingabe: string): string | null {
   return wert;
 }
 
+// --- Benennung und Identifizierbarkeit -----------------------------------
+
+/**
+ * Woran ein Teil im Fliesstext benannt wird.
+ *
+ * Bewusst nicht `Pick<Kleidungsstueck, 'id' | 'nummer' | 'matrixCode'>`,
+ * sondern dasselbe mit nullbarer Nummer: Ein echtes `Kleidungsstueck` passt
+ * heute schon hinein (`string` ist auf `string | null` zuweisbar), und wenn
+ * `Kleidungsstueck.nummer` später selbst nullbar wird, muss hier nichts
+ * nachgezogen werden.
+ */
+export type TeilKennung = Pick<Kleidungsstueck, 'id' | 'matrixCode'> & { nummer: string | null };
+
+/**
+ * So viele Zeichen des Matrixcodes bleiben stehen, bevor gekürzt wird. Die
+ * Zahl ist an den echten Etiketten gewählt: Nach zehn Zeichen Seriennummer
+ * (`BO00297362`) sind noch ein paar Zeichen Luft, ohne dass die Zeile in der
+ * Liste umbricht.
+ */
+const MATRIX_KURZ = 14;
+
+/**
+ * Wie ein Teil im Fliesstext heisst – für Meldungen, Verlauf und Listen.
+ *
+ * Die Reihenfolge folgt dem, was jemand am Kleidungsstück ablesen kann: Die
+ * aufgedruckte Nummer ist die Bezeichnung, die alle benutzen; erst wenn es
+ * keine gibt, tritt der Matrixcode an ihre Stelle.
+ *
+ * Gekürzt wird **vorne**, nicht hinten: In den echten Codes
+ * (`BO00297362TOTAL CARE21021892 / LION …`) steht die Seriennummer am Anfang,
+ * dahinter folgen Pflegeprogramm, Hersteller und Charge. `BO00297362TOTA…`
+ * lässt sich am Etikett wiederfinden, das Ende des Codes nicht – es sieht bei
+ * einer ganzen Lieferung gleich aus.
+ *
+ * `Teil #<id>` ist nur das Netz für Altdaten aus der Zeit, als die Nummer
+ * Pflicht war und trotzdem leer sein konnte. Nach der neuen Regel („Nummer
+ * oder Matrixcode") kann ein Teil ohne beides gar nicht mehr entstehen.
+ */
+export function teilBezeichnung(teil: TeilKennung): string {
+  if (teil.nummer) return teil.nummer;
+
+  if (teil.matrixCode) {
+    return teil.matrixCode.length > MATRIX_KURZ
+      ? `${teil.matrixCode.slice(0, MATRIX_KURZ)}…`
+      : teil.matrixCode;
+  }
+
+  return `Teil #${teil.id}`;
+}
+
+/**
+ * Meldung, wenn ein Teil weder Nummer noch Matrixcode hätte. Sie steht hier
+ * und nicht an der Prüfstelle, damit Formular, Import und Scan denselben Satz
+ * zeigen – es ist dieselbe Regel, also soll sie auch gleich klingen.
+ */
+export const IDENT_HINWEIS =
+  'Ein Teil braucht eine Nummer oder einen Matrixcode – ohne beides ist es nicht wiederzufinden.';
+
+/**
+ * Ob ein Teil überhaupt wiederauffindbar ist.
+ *
+ * Bisher war die Nummer Pflicht; künftig genügt eines von beidem, weil manche
+ * Hersteller nur noch den Matrixcode aufbringen. Was nicht mehr genügt, ist
+ * gar nichts: Ein Teil ohne jede Kennung liesse sich weder scannen noch am
+ * Spind zuordnen – es wäre ein Datensatz ohne Kleidungsstück dahinter.
+ *
+ * Beide Parameter sind schon jetzt nullbar, obwohl `Kleidungsstueck.nummer`
+ * noch `string` ist. Das ist Absicht: Diese Funktion ist das Fundament für den
+ * späteren Typwechsel und soll dann nicht angefasst werden müssen.
+ */
+export function istIdentifizierbar(nummer: string | null, matrixCode: string | null): boolean {
+  return Boolean(nummer) || Boolean(matrixCode);
+}
+
 // --- Waschzähler ---------------------------------------------------------
 
 /** Ohne eigene Angabe wird ab 80 Prozent der Höchstzahl gewarnt. */
@@ -211,6 +285,7 @@ export function mitDetails(teil: Kleidungsstueck, nach: Nachschlag): TeilMitDeta
 
   return {
     ...teil,
+    bezeichnung: teilBezeichnung(teil),
     typName: ersatzTyp.name,
     kategorie: ersatzTyp.kategorie,
     waschbar: ersatzTyp.waschbar,
@@ -243,7 +318,7 @@ export function nachDringlichkeit(a: TeilMitDetails, b: TeilMitDetails): number 
     if (t.status === 'reparatur') return 4;
     return 5;
   };
-  return rang(a) - rang(b) || a.nummer.localeCompare(b.nummer);
+  return rang(a) - rang(b) || a.bezeichnung.localeCompare(b.bezeichnung);
 }
 
 export function brauchtAufmerksamkeit(teil: TeilMitDetails): boolean {

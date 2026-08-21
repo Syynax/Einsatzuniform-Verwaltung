@@ -28,6 +28,8 @@ import {
   aenderungsText,
   auswertung as berechneAuswertung,
   brauchtAufmerksamkeit,
+  IDENT_HINWEIS,
+  istIdentifizierbar,
   istNummer,
   mitDetails,
   nachDringlichkeit,
@@ -37,7 +39,9 @@ import {
   normalisiereNummer,
   pruefungFaellig,
   stammdatenDiff,
+  teilBezeichnung,
 } from '../domain/kleidung';
+import { leseMatrixCode } from '../domain/matrixCode';
 import {
   aktualisierePerson,
   analysiereImport,
@@ -490,7 +494,11 @@ router.post('/personen/import', [
 const NUMMER_HINWEIS = 'Die Nummer muss dem Muster XXXX-XX/XX folgen – vorne sind vier bis zehn Ziffern erlaubt.';
 
 const teilValidierung = [
-  body('nummer').trim().isLength({ min: 8, max: 24 }).withMessage(NUMMER_HINWEIS),
+  // Die Nummer ist keine Pflichtangabe mehr – ob die Angaben zusammen ein Teil
+  // benennen, entscheidet `pruefeKennung` im Handler. Hier bleibt nur die
+  // Formprüfung für eine Nummer, die tatsächlich dasteht.
+  body('nummer').optional({ nullable: true, checkFalsy: true })
+    .trim().isLength({ min: 8, max: 24 }).withMessage(NUMMER_HINWEIS),
   body('typId').isInt({ min: 1 }).withMessage('Teiletyp ist Pflicht'),
   body('groesse').optional({ nullable: true }).isLength({ max: 20 }),
   body('hersteller').optional({ nullable: true }).isLength({ max: 60 }),
@@ -513,11 +521,35 @@ const teilValidierung = [
  * Lieferung tragen dieselbe Nummer. Unterschieden werden sie über Typ und
  * Träger; wo das nicht reicht, fragt der Scan nach.
  */
+/**
+ * Das Tor, durch das jeder Schreibweg muss, der Nummer oder Matrixcode setzt.
+ *
+ * Beide Regeln stehen hier zusammen, weil sie zusammen gelten: Erst muss das
+ * Teil überhaupt benennbar sein, dann muss sein Code frei sein. Getrennt
+ * aufgerufen wären sie zwei Dinge, die man einzeln vergessen kann – und genau
+ * das ist am Matrixcode-Endpunkt schon einmal beinahe passiert, der den Code
+ * entfernen darf und dabei ein nummernloses Teil unauffindbar machen würde.
+ */
+function pruefeKennung(
+  data: KleidungData,
+  nummer: string | null,
+  matrixCode: string | null,
+  eigeneId: number | null,
+): void {
+  if (!istIdentifizierbar(nummer, matrixCode)) throw fehler(400, IDENT_HINWEIS);
+  pruefeMatrixCodeFrei(data, matrixCode, eigeneId);
+}
+
 function pruefeMatrixCodeFrei(data: KleidungData, matrixCode: string | null, eigeneId: number | null): void {
   if (matrixCode) {
     const doppelterCode = data.teile.find(t => t.matrixCode === matrixCode && t.id !== eigeneId);
     if (doppelterCode) {
-      throw fehler(409, `Dieser Matrixcode ist bereits ${doppelterCode.nummer} zugeordnet.`);
+      // Der Typname steht bewusst dabei: Hat das andere Teil keine Nummer, ist
+      // seine Bezeichnung der gekürzte Matrixcode – und die Meldung sagte sonst
+      // nur, dass dieser Code diesem Code gehört. Mit „Überjacke" davor weiss
+      // man wenigstens, wonach man im Bestand sucht.
+      const typName = data.typen.find(t => t.id === doppelterCode.typId)?.name ?? 'Unbekannter Typ';
+      throw fehler(409, `Dieser Matrixcode ist bereits ${typName} ${teilBezeichnung(doppelterCode)} zugeordnet.`);
     }
   }
 }
@@ -556,14 +588,23 @@ router.get('/teile', [
       teile = personId === -1 ? teile.filter(t => t.personId === null) : teile.filter(t => t.personId === personId);
     }
     if (suche) {
+      // Der Matrixcode sucht mit: Ein Teil, das nur den Code des Herstellers
+      // trägt, wäre über die Nummer sonst nicht zu finden – und genau solche
+      // Teile sucht man am ehesten über das, was am Etikett steht.
       teile = teile.filter(t =>
-        t.nummer.toLowerCase().includes(suche)
+        (t.nummer?.toLowerCase().includes(suche) ?? false)
+        || (t.matrixCode?.toLowerCase().includes(suche) ?? false)
         || t.typName.toLowerCase().includes(suche)
         || (t.personName?.toLowerCase().includes(suche) ?? false)
         || (t.groesse?.toLowerCase().includes(suche) ?? false));
     }
 
-    res.json(teile.sort((a, b) => a.nummer.localeCompare(b.nummer)));
+    // Teile ohne Nummer ans Ende, danach nach Bezeichnung. Nicht `?? ''`:
+    // Der leere String sortiert vor jeder Nummer, und die Liste öffnete mit
+    // einem Block Matrixcodes statt mit dem, was die meisten suchen.
+    res.json(teile.sort((a, b) =>
+      Number(a.nummer === null) - Number(b.nummer === null)
+      || a.bezeichnung.localeCompare(b.bezeichnung)));
   } catch (err) {
     serverFehler(res, err, 'beim Laden der Kleidungsstücke');
   }
@@ -639,7 +680,7 @@ router.post('/teile/import', [
           protokolliere(data, {
             teilId: neu.id,
             typ: 'anlage',
-            detail: `${typ.name} ${neu.nummer} über CSV-Import angelegt`,
+            detail: `${typ.name} ${teilBezeichnung(neu)} über CSV-Import angelegt`,
             personId: neu.personId,
             zaehlerNachher: neu.waschzaehler,
             benutzer,
@@ -700,11 +741,15 @@ router.post('/teile', teilValidierung, async (req: Request, res: Response) => {
     const teil = await withFileLock(DATA_PATH, async () => {
       const data = await loadData();
 
-      const nummer = normalisiereNummer(req.body.nummer as string);
-      if (!nummer) throw fehler(400, NUMMER_HINWEIS);
+      // Über `text()` statt über einen Cast: `undefined as string` läuft in
+      // `normalisiereNummer` in ein `trim()` auf undefined und endete als 500
+      // statt als saubere 400.
+      const rohNummer = text(req.body.nummer);
+      const nummer = rohNummer ? normalisiereNummer(rohNummer) : null;
+      if (rohNummer && !nummer) throw fehler(400, NUMMER_HINWEIS);
 
       const matrixCode = req.body.matrixCode ? normalisiereMatrixCode(req.body.matrixCode as string) : null;
-      pruefeMatrixCodeFrei(data, matrixCode, null);
+      pruefeKennung(data, nummer, matrixCode, null);
 
       const typ = typOderFehler(data, Number(req.body.typId));
       const personId = zahlOderNull(req.body.personId);
@@ -737,7 +782,7 @@ router.post('/teile', teilValidierung, async (req: Request, res: Response) => {
       protokolliere(data, {
         teilId: neu.id,
         typ: 'anlage',
-        detail: `${typ.name} ${neu.nummer} angelegt`,
+        detail: `${typ.name} ${teilBezeichnung(neu)} angelegt`,
         personId,
         benutzer: benutzerVon(req),
         zaehlerNachher: neu.waschzaehler,
@@ -759,10 +804,11 @@ router.put('/teile/:id', [param('id').isInt({ min: 1 }), ...teilValidierung], as
       const id = Number(req.params.id);
       const teil = teilOderFehler(data, id);
 
-      const nummer = normalisiereNummer(req.body.nummer as string);
-      if (!nummer) throw fehler(400, NUMMER_HINWEIS);
+      const rohNummer = text(req.body.nummer);
+      const nummer = rohNummer ? normalisiereNummer(rohNummer) : null;
+      if (rohNummer && !nummer) throw fehler(400, NUMMER_HINWEIS);
       const matrixCode = req.body.matrixCode ? normalisiereMatrixCode(req.body.matrixCode as string) : null;
-      pruefeMatrixCodeFrei(data, matrixCode, id);
+      pruefeKennung(data, nummer, matrixCode, id);
 
       const typ = typOderFehler(data, Number(req.body.typId));
       const personId = zahlOderNull(req.body.personId);
@@ -842,7 +888,7 @@ router.delete('/teile/:id', [param('id').isInt({ min: 1 }), handleValidation], a
       if (historie.length > 0) {
         throw fehler(
           409,
-          `Für ${teil.nummer} ${historie.length === 1 ? 'ist 1 Vorgang' : `sind ${historie.length} Vorgänge`} protokolliert. `
+          `Für ${teilBezeichnung(teil)} ${historie.length === 1 ? 'ist 1 Vorgang' : `sind ${historie.length} Vorgänge`} protokolliert. `
           + 'Ein Teil mit Historie wird ausgesondert, nicht gelöscht – sonst verschwindet der Nachweis mit.',
         );
       }
@@ -872,7 +918,11 @@ router.post('/teile/:id/matrixcode', [
       const roh = text(req.body.code);
       const code = roh ? normalisiereMatrixCode(roh) : null;
       if (roh && !code) throw fehler(400, 'Der Matrixcode ist zu kurz oder zu lang.');
-      pruefeMatrixCodeFrei(data, code, id);
+      // Gegen die **bestehende** Nummer des Teils: Dieser Endpunkt darf den
+      // Code auch entfernen, und bei einem Teil ohne Nummer nähme das ihm die
+      // letzte Kennung. Es bliebe im Bestand stehen und wäre über keinen Scan
+      // mehr zu erreichen – ein Verlust, den niemand bemerkt.
+      pruefeKennung(data, eintrag.nummer, code, id);
 
       eintrag.matrixCode = code;
       protokolliere(data, {
@@ -1172,11 +1222,12 @@ function legeInCharge(
   benutzer: string | null,
 ): void {
   if (charge.status === 'abgeschlossen') throw fehler(409, `Charge ${charge.nummer} ist abgeschlossen.`);
-  if (teil.status === 'ausgesondert') throw fehler(409, `${teil.nummer} ist ausgesondert.`);
-  if (teil.chargeId === charge.id) throw fehler(409, `${teil.nummer} liegt schon in ${charge.nummer}.`);
+  const bezeichnung = teilBezeichnung(teil);
+  if (teil.status === 'ausgesondert') throw fehler(409, `${bezeichnung} ist ausgesondert.`);
+  if (teil.chargeId === charge.id) throw fehler(409, `${bezeichnung} liegt schon in ${charge.nummer}.`);
   if (teil.chargeId !== null) {
     const andere = data.chargen.find(c => c.id === teil.chargeId);
-    throw fehler(409, `${teil.nummer} liegt schon in Charge ${andere?.nummer ?? '?'}.`);
+    throw fehler(409, `${bezeichnung} liegt schon in Charge ${andere?.nummer ?? '?'}.`);
   }
 
   const typ = typOderFehler(data, teil.typId);
@@ -1227,7 +1278,7 @@ router.delete('/chargen/:id/teile/:teilId', [
       if (eintrag.status === 'abgeschlossen') throw fehler(409, 'Abgeschlossene Chargen lassen sich nicht mehr ändern.');
 
       const teil = teilOderFehler(data, Number(req.params.teilId));
-      if (teil.chargeId !== eintrag.id) throw fehler(409, `${teil.nummer} liegt nicht in dieser Charge.`);
+      if (teil.chargeId !== eintrag.id) throw fehler(409, `${teilBezeichnung(teil)} liegt nicht in dieser Charge.`);
 
       teil.chargeId = null;
       teil.status = 'dienst';
@@ -1328,7 +1379,7 @@ router.post('/chargen/:id/zurueck', [
         });
 
         if (typ?.waschgrenze !== null && typ?.waschgrenze !== undefined && teil.waschzaehler >= typ.waschgrenze) {
-          ueberGrenze.push(teil.nummer);
+          ueberGrenze.push(teilBezeichnung(teil));
         }
       }
 
@@ -1477,6 +1528,11 @@ router.post('/scan', [
 
       if (treffer.teile.length === 0) {
         scanBremse.fehlschlag(req);
+        // Aus einem unbekannten Matrixcode kann gleich ein Teil entstehen –
+        // was der Hersteller in den Code geschrieben hat, spart dabei
+        // Tipparbeit. Nur hier gelesen: Zu einem gefundenen Teil stehen die
+        // Angaben längst im Bestand und dürfen nicht überschrieben werden.
+        const vorschlag = treffer.codeArt === 'matrix' ? leseMatrixCode(treffer.code) : null;
         return {
           status: 'unbekannt',
           meldung: treffer.codeArt === 'ungueltig'
@@ -1488,6 +1544,7 @@ router.post('/scan', [
           code: treffer.code,
           teil: null,
           kandidaten: [],
+          ...(vorschlag ? { vorschlag } : {}),
         };
       }
 
@@ -1516,6 +1573,9 @@ router.post('/scan', [
       }
 
       const benutzer = benutzerVon(req);
+      // Einmal vorab: Der Scan meldet über dasselbe Teil in jedem Zweig, und
+      // gescannt werden kann längst auch etwas, das gar keine Nummer trägt.
+      const bezeichnung = teilBezeichnung(teil);
       let meldung: string;
 
       switch (vorgang) {
@@ -1524,14 +1584,14 @@ router.post('/scan', [
           if (chargeId === null) throw fehler(400, 'Für die Wäsche fehlt die Charge.');
           const charge = chargeOderFehler(data, chargeId);
           legeInCharge(data, charge, teil, benutzer);
-          meldung = `${teil.nummer} in Charge ${charge.nummer} aufgenommen.`;
+          meldung = `${bezeichnung} in Charge ${charge.nummer} aufgenommen.`;
           break;
         }
 
         case 'zurueck': {
           // Einzelne Rückmeldung, ohne die ganze Charge abzuschliessen –
           // praktisch, wenn ein Teil früher zurückkommt als der Rest.
-          if (teil.chargeId === null) throw fehler(409, `${teil.nummer} ist gar nicht in der Wäsche.`);
+          if (teil.chargeId === null) throw fehler(409, `${bezeichnung} ist gar nicht in der Wäsche.`);
           const charge = chargeOderFehler(data, teil.chargeId);
           const vorher = teil.waschzaehler;
           teil.waschzaehler = vorher + 1;
@@ -1550,7 +1610,7 @@ router.post('/scan', [
             chargeId: charge.id,
             benutzer,
           });
-          meldung = `${teil.nummer} zurück – Wäsche ${vorher} auf ${teil.waschzaehler}.`;
+          meldung = `${bezeichnung} zurück – Wäsche ${vorher} auf ${teil.waschzaehler}.`;
           break;
         }
 
@@ -1558,19 +1618,19 @@ router.post('/scan', [
           const personId = zahlOderNull(req.body.personId);
           if (personId === null) throw fehler(400, 'Für die Ausgabe fehlt die Person.');
           gebeAus(data, teil, personId, benutzer);
-          meldung = `${teil.nummer} ausgegeben an ${data.personen.find(p => p.id === personId)?.name ?? 'unbekannt'}.`;
+          meldung = `${bezeichnung} ausgegeben an ${data.personen.find(p => p.id === personId)?.name ?? 'unbekannt'}.`;
           break;
         }
 
         case 'ruecknahme': {
           gebeAus(data, teil, null, benutzer);
-          meldung = `${teil.nummer} in den Pool zurückgenommen.`;
+          meldung = `${bezeichnung} in den Pool zurückgenommen.`;
           break;
         }
 
         case 'lookup':
         default:
-          meldung = `${teil.nummer} gefunden.`;
+          meldung = `${bezeichnung} gefunden.`;
           break;
       }
 
@@ -1678,7 +1738,7 @@ function vorgangMitNamen(data: KleidungData, vorgang: Vorgang): VorgangMitNamen 
   const typ = teil ? data.typen.find(t => t.id === teil.typId) : undefined;
   return {
     ...vorgang,
-    nummer: teil?.nummer ?? '?',
+    bezeichnung: teil ? teilBezeichnung(teil) : '?',
     typName: typ?.name ?? 'Unbekannter Typ',
     personName: data.personen.find(p => p.id === vorgang.personId)?.name ?? null,
     chargeNummer: data.chargen.find(c => c.id === vorgang.chargeId)?.nummer ?? null,

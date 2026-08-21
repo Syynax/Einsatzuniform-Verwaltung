@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type {
-  ChargeMitTeilen, PersonMitAusstattung, ScanCodeArt, ScanVorgang, TeilMitDetails,
+  ChargeMitTeilen, PersonMitAusstattung, ScanCodeArt, ScanVorgang, ScanVorschlag, TeilMitDetails,
 } from '../../../types/kleidung';
+import type { TeilVorgabe } from '../dialoge/TeilDialog';
 import type { ScanKopplung } from '../../../hooks/useScanKopplung';
 import type { Scannen } from '../../../hooks/useScannen';
 import { setMatrixCode, tritteScanSitzungBei, meldeScan } from '../../../services/api';
@@ -81,8 +82,22 @@ const FORMATE: Record<ScanCodeArt, string[]> = {
 const CODE_ARTEN: { id: ScanCodeArt; label: string; hinweis: string }[] = [
   { id: 'auto', label: 'Beides', hinweis: 'Rät am Muster – bequem, aber bei reinen Ziffercodes unzuverlässig.' },
   { id: 'nummer', label: 'Nummerncode', hinweis: 'Nur die aufgedruckte Nummer, etwa vom eigenen Etikettenbogen.' },
-  { id: 'matrix', label: 'Matrixcode', hinweis: 'Nur Herstellercodes. Der Inhalt wird nicht ausgewertet.' },
+  { id: 'matrix', label: 'Matrixcode', hinweis: 'Nur Herstellercodes. Für die Zuordnung zählt der Code als Ganzes.' },
 ];
+
+/**
+ * Klartext dessen, was der Server aus einem Herstellercode gelesen hat.
+ *
+ * Es steht auf der Karte, bevor der Dialog aufgeht: Wer gleich Felder
+ * ausgefüllt vorfindet, soll vorher gesehen haben, woher sie kommen.
+ */
+const vorschlagText = (vorschlag: ScanVorschlag): string => {
+  const felder: string[] = [];
+  if (vorschlag.hersteller) felder.push(`Hersteller ${vorschlag.hersteller}`);
+  if (vorschlag.groesse) felder.push(`Größe ${vorschlag.groesse}`);
+  if (vorschlag.beschaffung) felder.push(`Herstellmonat ${vorschlag.beschaffung} (als Beschaffung)`);
+  return felder.join(' · ');
+};
 
 /**
  * Schneidet die Wunschliste auf das, was der Browser wirklich kann – ein
@@ -109,8 +124,11 @@ interface Props {
   onAenderung: () => Promise<void>;
   onTeil: (id: number) => void;
   onNeueCharge: () => void;
-  /** Unbekannte Nummer direkt anlegen – Nummer wird im Formular vorbelegt. */
-  onNeuesTeil: (nummer: string) => void;
+  /**
+   * Unbekannten Code direkt anlegen. Was mitkommt, hängt am Code: die Nummer,
+   * der Matrixcode und beim Matrixcode alles, was sich daraus lesen liess.
+   */
+  onNeuesTeil: (vorgabe: TeilVorgabe) => void;
 }
 
 export const ScanTab: React.FC<Props> = ({
@@ -697,7 +715,8 @@ export const ScanTab: React.FC<Props> = ({
               <div className={styles.mono} style={{ fontWeight: 700, marginBottom: '0.25rem' }}>{offen.code}</div>
               <p className={styles.soft} style={{ marginTop: 0 }}>
                 {offen.codeArt === 'matrix'
-                  ? 'Der Inhalt wird nicht ausgewertet – der Code dient nur als Zuordnung zu einem Teil.'
+                  ? 'Der Code dient als Zuordnung zu einem Teil: einem vorhandenen anlernen, '
+                    + 'oder ein neues damit anlegen.'
                   : offen.codeArt === 'ungueltig'
                     ? 'Gesucht war ein Nummerncode, gelesen wurde etwas anderes. Ist das ein Herstellercode, '
                       + 'oben auf „Matrixcode" umstellen – dann lässt er sich einem Teil zuordnen.'
@@ -725,49 +744,73 @@ export const ScanTab: React.FC<Props> = ({
                   </button>
                 </div>
               ) : offen.codeArt === 'matrix' ? (
-                <div className={styles.handEingabe}>
-                  <select
-                    className={styles.suche}
-                    style={{ flex: 1 }}
-                    value={zuordnung[offen.code] ?? ''}
-                    onChange={e => setZuordnung(prev => ({
-                      ...prev,
-                      [offen.code]: e.target.value ? Number(e.target.value) : '',
-                    }))}
-                    aria-label="Teil zuordnen"
-                  >
-                    <option value="">Vorhandenem Teil zuordnen …</option>
-                    {teile
-                      .filter(teil => teil.status !== 'ausgesondert' && !teil.matrixCode)
-                      .map(teil => (
-                        <option key={teil.id} value={teil.id}>
-                          {teil.nummer} · {teil.typName}{teil.personName ? ` · ${teil.personName}` : ''}
-                        </option>
-                      ))}
-                  </select>
-                  <button
-                    className={styles.btnPrimary}
-                    onClick={() => void ordneZu(offen.code)}
-                    type="button"
-                    disabled={typeof zuordnung[offen.code] !== 'number'}
-                  >
-                    Anlernen
-                  </button>
-                  <button
-                    className={styles.btnSecondary}
-                    onClick={() => scannen.verwerfeOffenen(offen.code)}
-                    type="button"
-                  >
-                    Verwerfen
-                  </button>
-                </div>
+                <>
+                  {offen.vorschlag && (
+                    <p className={styles.soft} style={{ marginTop: 0 }}>
+                      <i className="fas fa-wand-magic-sparkles" aria-hidden="true"></i>{' '}
+                      Aus dem Code gelesen: {vorschlagText(offen.vorschlag)}. Beim Anlegen vorbelegt
+                      und dort überschreibbar.
+                    </p>
+                  )}
+                  <div className={styles.handEingabe}>
+                    <select
+                      className={styles.suche}
+                      style={{ flex: 1 }}
+                      value={zuordnung[offen.code] ?? ''}
+                      onChange={e => setZuordnung(prev => ({
+                        ...prev,
+                        [offen.code]: e.target.value ? Number(e.target.value) : '',
+                      }))}
+                      aria-label="Teil zuordnen"
+                    >
+                      <option value="">Vorhandenem Teil zuordnen …</option>
+                      {teile
+                        .filter(teil => teil.status !== 'ausgesondert' && !teil.matrixCode)
+                        .map(teil => (
+                          <option key={teil.id} value={teil.id}>
+                            {teil.bezeichnung} · {teil.typName}{teil.personName ? ` · ${teil.personName}` : ''}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      className={styles.btnPrimary}
+                      onClick={() => void ordneZu(offen.code)}
+                      type="button"
+                      disabled={typeof zuordnung[offen.code] !== 'number'}
+                    >
+                      Anlernen
+                    </button>
+                  </div>
+
+                  {/* Zweite Zeile, damit „Anlernen" der naheliegende Weg bleibt:
+                      Meistens hängt der Code an einem längst erfassten Teil. */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <button
+                      className={styles.btnSecondary}
+                      onClick={() => {
+                        scannen.verwerfeOffenen(offen.code);
+                        onNeuesTeil({ matrixCode: offen.code, ...offen.vorschlag });
+                      }}
+                      type="button"
+                    >
+                      Neues Teil anlegen
+                    </button>
+                    <button
+                      className={styles.btnSecondary}
+                      onClick={() => scannen.verwerfeOffenen(offen.code)}
+                      type="button"
+                    >
+                      Verwerfen
+                    </button>
+                  </div>
+                </>
               ) : (
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button
                     className={styles.btnPrimary}
                     onClick={() => {
                       scannen.verwerfeOffenen(offen.code);
-                      onNeuesTeil(offen.code);
+                      onNeuesTeil({ nummer: offen.code });
                     }}
                     type="button"
                   >
