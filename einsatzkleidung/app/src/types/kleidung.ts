@@ -295,3 +295,50 @@ export interface PersonImportBericht {
   /** Falsch, solange nur geprüft wurde. */
   uebernommen: boolean;
 }
+
+// --- Teileimport aus CSV ---
+
+export type TeileImportModus = 'ueberspringen' | 'aktualisieren';
+
+export type TeilImportBefund = 'neu' | 'aktualisiert' | 'unveraendert' | 'uebersprungen' | 'fehler';
+
+/** Nur die Felder, die die Datei mitbringt. */
+export interface TeilImportWerte {
+  nummer: string;
+  typId: number;
+  matrixCode?: string | null;
+  groesse?: string | null;
+  hersteller?: string | null;
+  beschaffung?: string | null;
+  personId?: number | null;
+  standort?: string | null;
+  waschzaehler?: number;
+  letztePruefung?: string | null;
+  letzteWaesche?: string | null;
+  notiz?: string | null;
+}
+
+export interface TeilImportZeile {
+  zeile: number;
+  nummer: string;
+  typName: string | null;
+  personName: string | null;
+  befund: TeilImportBefund;
+  meldung: string | null;
+  teilId: number | null;
+  werte: TeilImportWerte | null;
+}
+
+export interface TeileImportBericht {
+  problem: string | null;
+  trenner: string;
+  spalten: string[];
+  zuordnung: Record<string, string>;
+  zeilen: TeilImportZeile[];
+  neu: number;
+  aktualisiert: number;
+  unveraendert: number;
+  uebersprungen: number;
+  fehler: number;
+  uebernommen: boolean;
+}

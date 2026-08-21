@@ -20,6 +20,8 @@ import type {
   ScanWarteErgebnis,
   TeilDetailAntwort,
   TeilFormData,
+  TeileImportBericht,
+  TeileImportModus,
   TeilMitDetails,
   Teiletyp,
   TeiletypFormData,
@@ -379,4 +381,30 @@ export const warteAufScans = async (id: string, seit: number, signal?: AbortSign
 
 export const beendeScanSitzung = async (id: string): Promise<void> => {
   await api.delete(`/kleidung/scan-sitzung/${id}`);
+};
+
+// --- Kleidungsstücke aus CSV ---
+
+export const pruefeTeileImport = async (
+  csv: string,
+  modus: TeileImportModus,
+): Promise<TeileImportBericht> => {
+  const response = await api.post<TeileImportBericht>('/kleidung/teile/import', {
+    csv,
+    modus,
+    uebernehmen: false,
+  });
+  return response.data;
+};
+
+export const uebernehmeTeileImport = async (
+  csv: string,
+  modus: TeileImportModus,
+): Promise<TeileImportBericht> => {
+  const response = await api.post<TeileImportBericht>('/kleidung/teile/import', {
+    csv,
+    modus,
+    uebernehmen: true,
+  });
+  return response.data;
 };

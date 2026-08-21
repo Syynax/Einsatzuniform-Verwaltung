@@ -13,6 +13,7 @@ import { TeilDialog } from './dialoge/TeilDialog';
 import { TeilDetail } from './dialoge/TeilDetail';
 import { PersonDialog } from './dialoge/PersonDialog';
 import { PersonenImportDialog } from './dialoge/PersonenImportDialog';
+import { TeileImportDialog } from './dialoge/TeileImportDialog';
 import { TypenDialog } from './dialoge/TypenDialog';
 import { ChargeDialog } from './dialoge/ChargeDialog';
 import styles from './Kleidung.module.css';
@@ -42,6 +43,7 @@ export const Kleidung: React.FC = () => {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [personDialog, setPersonDialog] = useState<{ person: PersonMitAusstattung | null } | null>(null);
   const [importOffen, setImportOffen] = useState(false);
+  const [teileImportOffen, setTeileImportOffen] = useState(false);
   const [typenOffen, setTypenOffen] = useState(false);
   const [chargeDialog, setChargeDialog] = useState<{ charge: ChargeMitTeilen | null } | null>(null);
 
@@ -104,6 +106,7 @@ export const Kleidung: React.FC = () => {
           onTeil={setDetailId}
           onNeu={() => setTeilDialog({ teil: null })}
           onTypen={() => setTypenOffen(true)}
+          onImport={() => setTeileImportOffen(true)}
         />
       )}
 
@@ -181,6 +184,14 @@ export const Kleidung: React.FC = () => {
             setPersonDialog(null);
             await daten.neuLaden();
           }}
+        />
+      )}
+
+      {teileImportOffen && (
+        <TeileImportDialog
+          typen={daten.typen}
+          onClose={() => setTeileImportOffen(false)}
+          onUebernommen={daten.neuLaden}
         />
       )}
 

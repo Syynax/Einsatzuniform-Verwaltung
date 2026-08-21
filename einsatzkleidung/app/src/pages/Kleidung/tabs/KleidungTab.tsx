@@ -10,11 +10,12 @@ interface Props {
   onTeil: (id: number) => void;
   onNeu: () => void;
   onTypen: () => void;
+  onImport: () => void;
 }
 
 const STATUS_FILTER: (TeilStatus | 'alle')[] = ['alle', 'dienst', 'waesche', 'reparatur', 'ausgesondert'];
 
-export const KleidungTab: React.FC<Props> = ({ teile, typen, onTeil, onNeu, onTypen }) => {
+export const KleidungTab: React.FC<Props> = ({ teile, typen, onTeil, onNeu, onTypen, onImport }) => {
   const [typFilter, setTypFilter] = useState<number | 'alle'>('alle');
   const [statusFilter, setStatusFilter] = useState<TeilStatus | 'alle'>('alle');
   const [nurOhneCode, setNurOhneCode] = useState(false);
@@ -74,6 +75,14 @@ export const KleidungTab: React.FC<Props> = ({ teile, typen, onTeil, onNeu, onTy
             placeholder="Nummer, Träger oder Typ"
             aria-label="Kleidungsstücke durchsuchen"
           />
+          <button
+            className={styles.btnSecondary}
+            onClick={onImport}
+            type="button"
+            title="Kleidungsstücke aus einer CSV-Datei übernehmen"
+          >
+            <i className="fas fa-file-csv" aria-hidden="true"></i> CSV
+          </button>
           <button className={styles.btnSecondary} onClick={onTypen} type="button">
             <i className="fas fa-sliders" aria-hidden="true"></i> Typen
           </button>

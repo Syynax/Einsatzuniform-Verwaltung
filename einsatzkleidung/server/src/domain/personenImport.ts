@@ -12,6 +12,10 @@
 
 import type { Person } from '../types/kleidung';
 import { parseCsv } from '../utils/csv';
+import { jaNein, monatAus, namensSchluessel } from '../utils/eingaben';
+
+// Weiterhin von hier aus verfügbar – der Personenimport war der erste Nutzer.
+export { jaNein, monatAus };
 
 export type ImportModus = 'ueberspringen' | 'aktualisieren';
 
@@ -70,9 +74,6 @@ const ALIASSE = {
 
 type Feld = keyof typeof ALIASSE;
 
-const JA = ['ja', 'j', 'true', 'wahr', 'x', '1', 'yes', 'y', 'agt', 'aktiv'];
-const NEIN = ['nein', 'n', 'false', 'falsch', '0', 'no', '-', 'inaktiv', 'ausgetreten', 'passiv'];
-
 function findeSpalte(spalten: string[], feld: Feld): string | null {
   for (const alias of ALIASSE[feld]) {
     if (spalten.includes(alias)) return alias;
@@ -80,48 +81,6 @@ function findeSpalte(spalten: string[], feld: Feld): string | null {
   return null;
 }
 
-/**
- * Null, wenn der Wert weder als Ja noch als Nein zu lesen ist. Die leere Zelle
- * gehört dazu – was sie bedeutet, hängt von der Spalte ab und entscheidet der
- * Aufrufer.
- */
-export function jaNein(wert: string): boolean | null {
-  const roh = wert.trim().toLowerCase();
-  if (JA.includes(roh)) return true;
-  if (NEIN.includes(roh)) return false;
-  return null;
-}
-
-/**
- * Monatsangaben in den Formen, die aus Excel fallen. Rückgabe ist immer
- * JJJJ-MM; `undefined` heisst "steht da, ergibt aber keinen Monat".
- */
-export function monatAus(wert: string): string | null | undefined {
-  const roh = wert.trim();
-  if (!roh) return null;
-
-  const gueltig = (jahr: number, monat: number): string | undefined =>
-    monat >= 1 && monat <= 12 && jahr >= 1900 && jahr <= 2999
-      ? `${jahr}-${String(monat).padStart(2, '0')}`
-      : undefined;
-
-  // 2027-03 und 2027-03-15
-  const iso = roh.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
-  if (iso) return gueltig(Number(iso[1]), Number(iso[2]));
-
-  // 03/2027, 03.2027, 3-2027
-  const monatJahr = roh.match(/^(\d{1,2})[./-](\d{4})$/);
-  if (monatJahr) return gueltig(Number(monatJahr[2]), Number(monatJahr[1]));
-
-  // 15.03.2027 und 15/03/2027
-  const tagMonatJahr = roh.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
-  if (tagMonatJahr) return gueltig(Number(tagMonatJahr[3]), Number(tagMonatJahr[2]));
-
-  return undefined;
-}
-
-/** Vergleichsform für Namen – Gross-/Kleinschreibung und Doppelleerzeichen egal. */
-const namensSchluessel = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, ' ');
 
 function nameAus(werte: Record<string, string>, spalten: Partial<Record<Feld, string>>): string {
   const direkt = spalten.name ? (werte[spalten.name] ?? '').trim() : '';

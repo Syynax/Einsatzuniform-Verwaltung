@@ -42,6 +42,12 @@ import {
   neuePersonAus,
 } from '../domain/personenImport';
 import type { ImportModus } from '../domain/personenImport';
+import {
+  aktualisiereTeil,
+  analysiereTeileImport,
+  neuesTeilAus,
+} from '../domain/teileImport';
+import type { TeileImportModus } from '../domain/teileImport';
 
 const router = Router();
 const DATA_PATH = DATA_FILE;
@@ -576,6 +582,110 @@ router.get('/teile/:id', [param('id').isInt({ min: 1 }), handleValidation], asyn
     res.json({ teil: alsDetail(data)(teil), vorgaenge });
   } catch (err) {
     serverFehler(res, err, 'beim Laden des Kleidungsstücks');
+  }
+});
+
+/**
+ * Kleidungsstücke aus einer CSV übernehmen. Gleicher Zuschnitt wie der
+ * Personenimport: ohne `uebernehmen` wird nur geprüft, mit `uebernehmen` läuft
+ * die Analyse innerhalb der Sperre noch einmal gegen den dann gültigen Bestand.
+ */
+router.post('/teile/import', [
+  body('csv').isString().withMessage('Es wird der Inhalt einer CSV-Datei erwartet.')
+    .bail()
+    .isLength({ min: 1, max: 4_000_000 }).withMessage('Die Datei ist leer oder grösser als 4 MB.'),
+  body('modus').optional().isIn(['ueberspringen', 'aktualisieren']).withMessage('Unbekannter Modus'),
+  body('uebernehmen').optional().isBoolean(),
+  handleValidation,
+], async (req: Request, res: Response) => {
+  try {
+    const csv = req.body.csv as string;
+    const modus: TeileImportModus = req.body.modus === 'aktualisieren' ? 'aktualisieren' : 'ueberspringen';
+    const uebernehmen = req.body.uebernehmen === true || req.body.uebernehmen === 'true';
+
+    if (!uebernehmen) {
+      const data = await loadData();
+      const bericht = analysiereTeileImport(csv, data, modus);
+      if (bericht.problem) return res.status(400).json({ error: bericht.problem });
+      return res.json({ ...bericht, uebernommen: false });
+    }
+
+    const ergebnis = await withFileLock(DATA_PATH, async () => {
+      const data = await loadData();
+      const bericht = analysiereTeileImport(csv, data, modus);
+      if (bericht.problem) throw fehler(400, bericht.problem);
+
+      if (bericht.neu === 0 && bericht.aktualisiert === 0) {
+        return { ...bericht, uebernommen: false };
+      }
+
+      const jetzt = new Date().toISOString();
+      const benutzer = benutzerVon(req);
+
+      for (const zeile of bericht.zeilen) {
+        if (!zeile.werte) continue;
+        const typ = data.typen.find(t => t.id === zeile.werte!.typId);
+        if (!typ) continue;
+
+        if (zeile.befund === 'neu') {
+          const neu = neuesTeilAus(zeile.werte, nextId(data.teile), typ, jetzt);
+          data.teile.push(neu);
+          protokolliere(data, {
+            teilId: neu.id,
+            typ: 'anlage',
+            detail: `${typ.name} ${neu.nummer} über CSV-Import angelegt`,
+            personId: neu.personId,
+            zaehlerNachher: neu.waschzaehler,
+            benutzer,
+          });
+          continue;
+        }
+
+        if (zeile.befund === 'aktualisiert' && zeile.teilId !== null) {
+          const index = data.teile.findIndex(t => t.id === zeile.teilId);
+          if (index === -1) continue;
+
+          const vorher = data.teile[index];
+          const geaendert = aktualisiereTeil(vorher, zeile.werte, typ);
+          data.teile[index] = geaendert;
+
+          // Auch der Import muss den Nachweis führen: Ein Waschzähler, der sich
+          // über eine Datei ändert, ist keine andere Änderung als einer, der
+          // über den Dialog geändert wird.
+          const aenderungen = stammdatenDiff(vorher, geaendert, tid => data.typen.find(t => t.id === tid)?.name ?? `Typ ${tid}`);
+          if (aenderungen.length > 0) {
+            const zaehlerGeaendert = vorher.waschzaehler !== geaendert.waschzaehler;
+            protokolliere(data, {
+              teilId: geaendert.id,
+              typ: 'korrektur',
+              detail: `CSV-Import: ${aenderungsText(aenderungen)}`,
+              zaehlerVorher: zaehlerGeaendert ? vorher.waschzaehler : null,
+              zaehlerNachher: zaehlerGeaendert ? geaendert.waschzaehler : null,
+              benutzer,
+            });
+          }
+
+          if (vorher.personId !== geaendert.personId) {
+            protokolliere(data, {
+              teilId: geaendert.id,
+              typ: geaendert.personId === null ? 'ruecknahme' : 'ausgabe',
+              detail: geaendert.personId === null
+                ? 'CSV-Import: in den Pool zurückgenommen'
+                : `CSV-Import: ausgegeben an ${data.personen.find(p => p.id === geaendert.personId)?.name ?? 'unbekannt'}`,
+              personId: geaendert.personId,
+              benutzer,
+            });
+          }
+        }
+      }
+
+      await saveData(data);
+      return { ...bericht, uebernommen: true };
+    });
+
+    res.json(ergebnis);
+  } catch (err) {
+    serverFehler(res, err, 'beim Import der Kleidungsstücke');
   }
 });
 
