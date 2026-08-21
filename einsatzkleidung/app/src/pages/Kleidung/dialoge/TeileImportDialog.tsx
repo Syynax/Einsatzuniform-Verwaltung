@@ -178,8 +178,14 @@ export const TeileImportDialog: React.FC<Props> = ({ typen, onClose, onUebernomm
           <p className={styles.formHinweis}>
             Pflicht sind <strong>Nummer</strong> und <strong>Typ</strong>. Dazu erkannt werden Größe,
             Träger, Hersteller, Beschaffung, Standort, Waschzähler, Letzte Prüfung, Letzte Wäsche,
-            Matrixcode und Notiz. Die Nummer muss dem Muster <span className={styles.mono}>XXXX-XX/XX</span> folgen;
-            eine reine Ziffernfolge wie <span className={styles.mono}>10420719</span> wird umgesetzt.
+            Matrixcode und Notiz. Die Nummer muss dem Muster <span className={styles.mono}>XXXX-XX/XX</span> folgen,
+            vorne mit vier bis zehn Ziffern; eine reine Ziffernfolge wie <span className={styles.mono}>10420719</span> wird
+            umgesetzt.
+          </p>
+          <p className={styles.formHinweis}>
+            <strong>Wiedererkannt wird ein Teil an Nummer, Typ und Träger zusammen.</strong> Dieselbe Nummer darf
+            mehrfach vorkommen – steht auf dem Etikett die Nummer der Lieferung, tragen alle Stücke daraus dieselbe.
+            Wer solche Teile per Datei pflegt, braucht deshalb die Trägerspalte.
           </p>
           <p className={styles.formHinweis}>
             <strong>Typ und Träger werden über den Namen gesucht und nie neu angelegt.</strong> Ein

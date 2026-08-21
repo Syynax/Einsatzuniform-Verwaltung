@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.3.0
+
+Die aufgedruckte Nummer ist jetzt das Kennzeichen des Teils, auch wenn sie
+nicht eindeutig ist. Damit lässt sich Bestand erfassen, auf dem nur das
+Herstelleretikett klebt.
+
+- **Der vordere Block der Nummer darf vier bis zehn Ziffern lang sein** –
+  bisher waren genau vier vorgeschrieben. Damit passen auch `842298-01/30`
+  und `1234567890-04/25` ins Feld. Die hinteren vier Ziffern bleiben `XX/XX`;
+  daran teilt der Server eine reine Ziffernfolge auf, egal wie lang sie ist
+- **Dieselbe Nummer darf mehreren Teilen gehören.** Auf vielen Etiketten steht
+  die Nummer der Fertigung, nicht die des einzelnen Stücks – alle Jacken einer
+  Lieferung tragen dann dieselbe. Das Anlegen weist sie nicht mehr ab
+- **Der Scan fragt nach, statt zu raten.** Passen mehrere Teile zu einem Code,
+  wird nichts gebucht: Sie stehen mit Typ, Träger, Größe und Standort zur
+  Auswahl, erst der Klick auf das richtige Teil bucht. Passt nur eines, ändert
+  sich nichts am bisherigen Ablauf
+- **Der CSV-Import erkennt Teile an Nummer, Typ und Träger** statt an der
+  Nummer allein. Zwei Zeilen, die sich daran nicht unterscheiden, ergeben eine
+  Fehlerzeile – und wo im Bestand mehrere Teile gleich aussehen, greift der
+  Import keines heraus, sondern meldet die Zeile
+- Der Matrixcode bleibt eindeutig. Er ist der einzige Code, der ein einzelnes
+  Stück sicher benennt
+- **Die Kamera liest jetzt auch PDF417 und Aztec.** Herstelleretiketten – etwa
+  die der LHD Group auf Schutzjacken – tragen die stückgenaue Seriennummer in
+  einem PDF417, nach dem der Scanner bisher gar nicht gesucht hat. Welche
+  Formate wirklich gelesen werden, fragt die Anwendung vorher beim Browser ab,
+  damit ein Format, das die Plattform nicht kennt, nicht den ganzen Scanner
+  lahmlegt
+
 ## 1.2.0
 
 Vier Änderungen: eine Korrektur an der Prüflogik, zwei Stellen, die falsche

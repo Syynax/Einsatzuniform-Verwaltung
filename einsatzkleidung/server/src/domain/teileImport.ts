@@ -3,7 +3,7 @@
  *
  * Gleicher Zuschnitt wie der Personenimport: erst prüfen, dann übernehmen,
  * beides durch dieselbe Analyse. Der Schlüssel ist hier die aufgedruckte
- * Nummer statt des Namens.
+ * Nummer zusammen mit Typ und Träger – die Nummer allein ist nicht eindeutig.
  *
  * Typ und Träger werden über ihren Namen aufgelöst und niemals still angelegt.
  * Ein Tippfehler in der Typspalte soll eine Fehlerzeile ergeben und keinen
@@ -88,6 +88,15 @@ function findeSpalte(spalten: string[], feld: Feld): string | null {
  * Vergleich für Typnamen: „Überjacke HuPF Teil 1" soll auch als
  * „ueberjacke hupf teil1" gefunden werden.
  */
+/**
+ * Woran der Import ein Teil wiedererkennt. Die Nummer allein reicht nicht:
+ * Auf vielen Etiketten steht die Nummer der Lieferung, nicht die des Stücks.
+ * Typ und Träger kommen dazu – dieselben Merkmale, an denen auch am Spind
+ * zwei gleiche Jacken auseinandergehalten werden.
+ */
+export const teilSchluessel = (nummer: string, typId: number, personId: number | null): string =>
+  `${nummer}|${typId}|${personId ?? ''}`;
+
 const typSchluessel = (name: string): string =>
   name
     .trim()
@@ -206,7 +215,17 @@ export function analysiereTeileImport(
 
   const nachTyp = new Map(bestand.typen.map(t => [typSchluessel(t.name), t]));
   const nachPerson = new Map(bestand.personen.map(p => [namensSchluessel(p.name), p]));
-  const nachNummer = new Map(bestand.teile.map(t => [t.nummer, t]));
+  // Die Nummer allein benennt kein Teil mehr: Steht auf dem Etikett die Nummer
+  // der Lieferung, tragen alle Stücke daraus dieselbe. Wiedererkannt wird
+  // deshalb über Nummer, Typ und Träger zusammen – dieselbe Unterscheidung,
+  // die auch der Scan dem Anwender vorlegt.
+  const nachSchluessel = new Map<string, Kleidungsstueck[]>();
+  for (const teil of bestand.teile) {
+    const schluessel = teilSchluessel(teil.nummer, teil.typId, teil.personId);
+    const bisher = nachSchluessel.get(schluessel);
+    if (bisher) bisher.push(teil);
+    else nachSchluessel.set(schluessel, [teil]);
+  }
   const matrixBelegt = new Map(
     bestand.teile.filter(t => t.matrixCode).map(t => [t.matrixCode as string, t]),
   );
@@ -238,15 +257,9 @@ export function analysiereTeileImport(
     if (!nummer) {
       zeilen.push(fehlerZeile(
         rohNummer
-          ? `"${rohNummer}" ist keine gültige Nummer. Erwartet wird das Muster XXXX-XX/XX.`
+          ? `"${rohNummer}" ist keine gültige Nummer. Erwartet wird das Muster XXXX-XX/XX, vorne mit vier bis zehn Ziffern.`
           : 'Keine Nummer in der Zeile.',
       ));
-      continue;
-    }
-
-    const schonInDatei = inDatei.get(nummer);
-    if (schonInDatei !== undefined) {
-      zeilen.push(fehlerZeile(`Nummer steht schon in Zeile ${schonInDatei}.`));
       continue;
     }
 
@@ -347,22 +360,44 @@ export function analysiereTeileImport(
       continue;
     }
 
+    // Zwei Zeilen, die auf dasselbe Teil zeigen, kann der Import nicht
+    // auseinanderhalten – er wüsste nicht, welche gilt.
+    const schluessel = teilSchluessel(nummer, typ.id, werte.personId ?? null);
+    const schonInDatei = inDatei.get(schluessel);
+    if (schonInDatei !== undefined) {
+      zeilen.push(fehlerZeile(
+        `Nummer, Typ und Träger stehen genauso schon in Zeile ${schonInDatei}.`
+        + ' Mehrere gleiche Teile brauchen unterschiedliche Träger.',
+      ));
+      continue;
+    }
+
     // Erst hier vormerken: Eine fehlerhafte Zeile soll die Nummer nicht für
     // eine spätere, saubere Zeile blockieren.
-    inDatei.set(nummer, zeile.nummer);
+    inDatei.set(schluessel, zeile.nummer);
     if (werte.matrixCode) matrixInDatei.set(werte.matrixCode, zeile.nummer);
 
     const personName = werte.personId
       ? bestand.personen.find(p => p.id === werte.personId)?.name ?? null
       : null;
 
-    const treffer = nachNummer.get(nummer);
+    const passende = nachSchluessel.get(schluessel) ?? [];
     const grund = { zeile: zeile.nummer, nummer, typName: typ.name, personName, werte };
 
-    if (!treffer) {
+    if (passende.length === 0) {
       zeilen.push({ ...grund, befund: 'neu', meldung: null, teilId: null });
       continue;
     }
+
+    if (passende.length > 1) {
+      zeilen.push(fehlerZeile(
+        `Zu Nummer, Typ und Träger gibt es ${passende.length} Teile im Bestand.`
+        + ' Welches gemeint ist, lässt sich aus der Datei nicht ablesen – bitte im Dialog ändern.',
+      ));
+      continue;
+    }
+
+    const treffer = passende[0];
 
     if (modus === 'ueberspringen') {
       zeilen.push({ ...grund, befund: 'uebersprungen', meldung: 'Ist schon erfasst.', teilId: treffer.id });

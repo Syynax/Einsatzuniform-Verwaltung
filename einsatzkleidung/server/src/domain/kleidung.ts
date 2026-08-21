@@ -19,8 +19,20 @@ import { ANLASS_TEXT, PRUEF_VORWARN_TAGE, WAESCHE_ANLAESSE } from '../constants/
 
 // --- Codes ---------------------------------------------------------------
 
-/** Aufgedruckte Nummer: vier Ziffern, Bindestrich, zwei Ziffern, Schrägstrich, zwei Ziffern. */
-export const NUMMER_MUSTER = /^\d{4}-\d{2}\/\d{2}$/;
+/**
+ * Aufgedruckte Nummer: vier bis zehn Ziffern, Bindestrich, zwei Ziffern,
+ * Schrägstrich, zwei Ziffern. Der vordere Block ist je nach Hersteller
+ * unterschiedlich lang – `6072-10/23` steht genauso auf einem Etikett wie
+ * `1234567890-04/25`.
+ */
+export const NUMMER_MUSTER = /^\d{4,10}-\d{2}\/\d{2}$/;
+
+/** Kürzester und längster vorderer Block – gilt auch für die reine Ziffernfolge. */
+export const NUMMER_VORNE_MIN = 4;
+export const NUMMER_VORNE_MAX = 10;
+
+/** Der hintere Teil ist immer `XX/XX`, also vier Ziffern. */
+const NUMMER_HINTEN = 4;
 
 export function istNummer(code: string): boolean {
   return NUMMER_MUSTER.test(code.trim());
@@ -31,6 +43,10 @@ export function istNummer(code: string): boolean {
  * Ziffernfolge (10420719) und ein abweichender Trenner – am Etikett steht die
  * Nummer nicht immer sauber lesbar, und beim Tippen soll niemand auf
  * Sonderzeichen achten müssen.
+ *
+ * Die hinteren vier Ziffern sind immer `XX/XX`; alles davor ist der vordere
+ * Block. Deshalb lässt sich auch eine reine Ziffernfolge eindeutig aufteilen,
+ * egal wie lang sie vorne ist.
  *
  * Gibt null zurück, wenn daraus keine gültige Nummer wird.
  */
@@ -44,8 +60,10 @@ export function normalisiereNummer(eingabe: string): string | null {
   if (!/^[0-9 ./-]+$/.test(roh)) return null;
 
   const ziffern = roh.replace(/[^0-9]/g, '');
-  if (ziffern.length !== 8) return null;
-  return `${ziffern.slice(0, 4)}-${ziffern.slice(4, 6)}/${ziffern.slice(6, 8)}`;
+  const vorne = ziffern.length - NUMMER_HINTEN;
+  if (vorne < NUMMER_VORNE_MIN || vorne > NUMMER_VORNE_MAX) return null;
+
+  return `${ziffern.slice(0, vorne)}-${ziffern.slice(vorne, vorne + 2)}/${ziffern.slice(vorne + 2)}`;
 }
 
 /**

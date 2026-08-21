@@ -87,3 +87,38 @@ export const monat = (wert: string | null): string => {
   const [jahr, m] = wert.split('-');
   return m ? `${m}/${jahr}` : wert;
 };
+
+// --- Nummerncode ---------------------------------------------------------
+
+/**
+ * Aufgedruckte Nummer: vier bis zehn Ziffern, Bindestrich, zwei Ziffern,
+ * Schrägstrich, zwei Ziffern. Muss zum Muster im Server passen
+ * (`server/src/domain/kleidung.ts`).
+ */
+export const NUMMER_MUSTER = /^\d{4,10}-\d{2}\/\d{2}$/;
+
+/** Zum Anzeigen in Hinweisen und Platzhaltern. */
+export const NUMMER_HINWEIS = 'XXXX-XX/XX, vorne bis zu zehn Ziffern';
+
+/**
+ * Setzt die Trenner selbst, damit niemand `-` und `/` tippen muss.
+ *
+ * Gerechnet wird nur mit den Ziffern; getippte Trenner werden verworfen und
+ * neu gesetzt. Das muss so sein: Der Formatierer schreibt seinen eigenen
+ * Bindestrich ins Feld und bekommt ihn beim nächsten Tastendruck zurück –
+ * würde er dessen Stelle als Grenze nehmen, bliebe der vordere Block für
+ * immer vierstellig und lange Nummern würden abgeschnitten.
+ *
+ * Die hinteren vier Ziffern sind immer `XX/XX`, alles davor ist der vordere
+ * Block. Bis acht Ziffern ist der Block vierstellig, danach wächst er mit –
+ * die Anzeige rutscht dabei einmal, steht am Ende aber richtig.
+ */
+export const formatiereNummer = (eingabe: string): string => {
+  const ziffern = eingabe.replace(/[^0-9]/g, '').slice(0, 14);
+
+  if (ziffern.length <= 4) return ziffern;
+  if (ziffern.length <= 6) return `${ziffern.slice(0, 4)}-${ziffern.slice(4)}`;
+
+  const vorne = Math.max(4, ziffern.length - 4);
+  return `${ziffern.slice(0, vorne)}-${ziffern.slice(vorne, vorne + 2)}/${ziffern.slice(vorne + 2)}`;
+};

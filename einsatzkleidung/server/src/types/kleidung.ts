@@ -194,9 +194,14 @@ export interface Auswertung {
 
 /** Ergebnis eines Scans – dieselbe Form für Nummerncode und Matrixcode. */
 export interface ScanErgebnis {
-  status: 'ok' | 'unbekannt' | 'hinweis';
+  status: 'ok' | 'unbekannt' | 'hinweis' | 'mehrdeutig';
   meldung: string;
   codeArt: 'nummer' | 'matrix';
   code: string;
   teil: TeilMitDetails | null;
+  /**
+   * Bei `mehrdeutig` alle Teile mit dieser Nummer – gebucht wurde noch nichts.
+   * Die Wahl kommt als `teilId` zurück. Sonst leer.
+   */
+  kandidaten: TeilMitDetails[];
 }

@@ -12,7 +12,7 @@ aber genauso für die übrige Einsatzkleidung.
 | --- | --- |
 | **Übersicht** | Was ansteht: Teile an der Waschgrenze, fällige Prüfungen, offene Reparaturen, laufende Wäsche und die letzten Vorgänge |
 | **Kleidung** | Alle Teile als Kacheln mit Waschzähler-Ampel, Filter nach Typ und Status, Volltextsuche über Nummer, Typ und Träger. Erfassen einzeln, als CSV-Import oder mit gedruckten Etiketten |
-| **Scannen** | Nummerncode (`XXXX-XX/XX`) und Matrixcode – wahlweise mit der Kamera, getippt oder über ein gekoppeltes Handy |
+| **Scannen** | Nummerncode (`XXXX-XX/XX`, vorne bis zu zehn Ziffern) und Matrixcode – wahlweise mit der Kamera, getippt oder über ein gekoppeltes Handy |
 | **Wäsche** | Chargen: Teile einsammeln, abgeben, zurückmelden – ganz oder in Teilen. Erst die Rückmeldung zählt die Waschzähler hoch |
 | **Personen** | Einsatzkräfte mit ihrer Ausstattung, Atemschutz-Kennzeichnung und dem, was in der Sollausstattung fehlt. Anlegen einzeln oder als CSV-Import |
 | **Auswertung** | Wäschen pro Monat, nach Anlass, Belastung je Teiletyp und der komplette Verlauf |
@@ -172,7 +172,7 @@ Pflicht sind **Nummer** und **Typ**, alles andere darf fehlen:
 
 | Spalte | Auch erkannt als | Inhalt |
 | --- | --- | --- |
-| `Nummer` | Nr, Teilenummer, Inventarnummer | `XXXX-XX/XX`; eine reine Ziffernfolge wie `10420719` wird umgesetzt |
+| `Nummer` | Nr, Teilenummer, Inventarnummer | `XXXX-XX/XX`, vorne vier bis zehn Ziffern; eine reine Ziffernfolge wie `10420719` wird umgesetzt |
 | `Typ` | Teiletyp, Art, Bezeichnung | Name eines angelegten Teiletyps |
 | `Größe` | Gr, Konfektionsgröße | freier Text |
 | `Träger` | Person, Zugeordnet, Besitzer | Name einer angelegten Person; leer heißt Pool |
@@ -201,14 +201,22 @@ stehen sie mit Zeilennummer und Grund; ein Filter **nur Fehler** blendet den
 Rest aus:
 
 - Nummer fehlt oder passt nicht auf `XXXX-XX/XX`
-- dieselbe Nummer steht in der Datei mehrfach
+- Nummer, Typ und Träger stehen in der Datei zweimal genau gleich – die
+  Zeilen wären nicht auseinanderzuhalten. Dieselbe Nummer mit verschiedenen
+  Trägern ist dagegen in Ordnung
+- zu Nummer, Typ und Träger gibt es im Bestand schon mehrere Teile; welches
+  gemeint ist, steht nicht in der Datei
 - Teiletyp oder Träger ist nicht angelegt
 - ein Datum ergibt keinen Kalendertag – ein `31.02.2026` ist ein Tippfehler und
   wird nicht stillschweigend auf den 3. März geschoben
 - ein Matrixcode gehört schon zu einem anderen Teil
 - ein Waschzähler steht bei einem Typ, der keinen führt (Helm, Stiefel)
 
-### Wenn die Nummer schon erfasst ist
+### Wenn das Teil schon erfasst ist
+
+Wiedererkannt wird ein Teil an **Nummer, Typ und Träger zusammen** – die
+Nummer allein genügt nicht, weil mehrere Teile dieselbe tragen dürfen. Wer
+gleichnamige Teile per Datei pflegt, braucht deshalb die Trägerspalte.
 
 **Überspringen** lässt das vorhandene Teil unangetastet, **Aktualisieren**
 übernimmt die Felder aus der Datei. Auch dann gilt: Geändert wird nur, was in
@@ -323,8 +331,15 @@ Abgeschlossene Chargen bleiben als Nachweis stehen.
 
 Gescannt werden zwei Dinge:
 
-- **Nummerncode** im Muster `XXXX-XX/XX` – die aufgedruckte Nummer. Sie ist die
-  Identität des Teils und muss eindeutig sein.
+- **Nummerncode** im Muster `XXXX-XX/XX` – die aufgedruckte Nummer. Der
+  vordere Block ist vier bis zehn Ziffern lang, je nachdem, was der
+  Hersteller aufs Etikett schreibt; die hinteren vier sind immer `XX/XX`.
+
+  Sie **muss nicht eindeutig sein**. Auf vielen Etiketten steht die Nummer
+  der Fertigung, nicht die des einzelnen Stücks – alle Jacken einer
+  Lieferung tragen dann dieselbe. Passen mehrere Teile zu einem Scan, bucht
+  das Add-on nichts, sondern legt sie mit Typ, Träger, Größe und Standort
+  zur Auswahl vor. Erst der Klick auf das richtige Teil bucht.
 - **Matrixcode** am Etikett. Sein Inhalt wird **nicht** ausgewertet: Was der
   Hersteller hineingeschrieben hat, ist egal – der rohe Wert dient nur als
   zweiter Weg zur Zuordnung. Ein unbekannter Matrixcode lässt sich im Scan-Tab
@@ -335,7 +350,10 @@ Ziel-Charge), Wäsche zurück, Ausgabe an eine Person, Rückgabe in den Pool ode
 nur nachschlagen. Ohne diese Wahl wüsste ein Scan nicht, was er auslösen soll.
 
 Die Kamera nutzt die `BarcodeDetector`-API mit den Formaten Data Matrix, QR,
-Code 128, Code 39 und EAN-13. Damit das funktioniert, müssen zwei Dinge stimmen:
+Code 128, Code 39, EAN-13, PDF417 und Aztec. Welche davon tatsächlich gelesen
+werden, entscheidet der Browser: Die Anwendung fragt die unterstützten Formate
+ab und sucht nur nach denen, die die Plattform mitbringt. Damit das funktioniert,
+müssen zwei Dinge stimmen:
 
 - **Sicherer Kontext:** Kamerazugriff gibt es nur über `https://` oder direkt
   über `localhost`. Wer Home Assistant über `http://homeassistant.local:8123`
@@ -349,7 +367,10 @@ der Scanner direkt im Ingress-Panel. Der optionale Port 8098 ist über den Tunne
 veröffentlichen hieße ungeschützter Vollzugriff aus dem Internet.
 
 Unabhängig davon funktioniert immer die **Eingabe von Hand**: Ziffern tippen,
-die Formatierung `XXXX-XX/XX` setzt das Feld selbst.
+die Formatierung `XXXX-XX/XX` setzt das Feld selbst. Gerechnet wird dabei nur
+mit den Ziffern: Die letzten vier sind `XX/XX`, alles davor ist der vordere
+Block. Bei mehr als acht Ziffern rutscht die Anzeige beim Tippen einmal –
+am Ende steht die Nummer richtig da.
 
 ### Handy als Scanner koppeln
 
@@ -404,6 +425,7 @@ neu starten.
 | --- | --- |
 | „Kamera nicht verfügbar" | Kein `https://` oder ein Browser ohne `BarcodeDetector`. Nummer tippen oder Handy koppeln |
 | Scan meldet „kein Teil angelegt" | Die Nummer gibt es noch nicht – erst das Teil anlegen |
+| Scan fragt „Welches Teil?" | Mehrere Teile tragen diese Nummer. Am Träger erkennen, welches gemeint ist, und auswählen – gebucht ist noch nichts |
 | Matrixcode wird nicht erkannt | Er ist noch keinem Teil zugeordnet. Im Scan-Tab unter „Unbekannter Code" anlernen |
 | „Für die Wäsche fehlt die Charge" | Im Scan-Tab oben eine offene Charge wählen oder anlegen |
 | Teiletyp lässt sich nicht löschen | Es hängen noch Teile daran. Erst umtragen oder löschen |

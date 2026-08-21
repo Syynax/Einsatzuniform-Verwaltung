@@ -15,7 +15,7 @@ Läuft als Add-on in Home Assistant und erscheint als eigener Punkt
 | --- | --- |
 | **Übersicht** | Teile an der Waschgrenze, fällige Prüfungen, offene Reparaturen, laufende Wäsche, letzte Vorgänge |
 | **Kleidung** | Alle Teile als Kacheln mit Waschzähler-Ampel, Filter nach Typ und Status, Suche über Nummer, Typ und Träger. Erfassen einzeln, als CSV-Import oder mit gedruckten QR-Etiketten |
-| **Scannen** | Nummerncode `XXXX-XX/XX` und Matrixcode – mit der Kamera, getippt oder über ein gekoppeltes Handy |
+| **Scannen** | Nummerncode `XXXX-XX/XX` (vorne bis zu zehn Ziffern) und Matrixcode – mit der Kamera, getippt oder über ein gekoppeltes Handy. Tragen mehrere Teile dieselbe Nummer, fragt der Scan nach, statt zu raten |
 | **Wäsche** | Chargen: einsammeln, abgeben, zurückmelden – ganz oder in Teilen. Erst die Rückmeldung zählt die Waschzähler hoch |
 | **Personen** | Einsatzkräfte mit Ausstattung, Atemschutz-Kennzeichnung und dem, was in der Sollausstattung fehlt. Anlegen einzeln oder als CSV-Import |
 | **Auswertung** | Wäschen pro Monat, nach Anlass, Belastung je Teiletyp, kompletter Verlauf |
@@ -149,4 +149,4 @@ in einem Cookie – der Ingress-Pfad wechselt, ein Cookie-Path liefe ins Leere.
 
 ## Änderungen
 
-Siehe **[einsatzkleidung/CHANGELOG.md](einsatzkleidung/CHANGELOG.md)**. Aktuell: **1.0.0**.
+Siehe **[einsatzkleidung/CHANGELOG.md](einsatzkleidung/CHANGELOG.md)**. Aktuell: **1.3.0**.

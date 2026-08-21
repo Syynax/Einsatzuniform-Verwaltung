@@ -339,13 +339,16 @@ export const verwerfeCharge = async (id: number): Promise<void> => {
 export const scanne = async (
   code: string,
   vorgang: ScanVorgang,
-  ziel: { chargeId?: number | null; personId?: number | null } = {},
+  ziel: { chargeId?: number | null; personId?: number | null; teilId?: number | null } = {},
 ): Promise<ScanErgebnis> => {
   const response = await api.post<ScanErgebnis>('/kleidung/scan', {
     code,
     vorgang,
     chargeId: ziel.chargeId ?? null,
     personId: ziel.personId ?? null,
+    // Nur gesetzt, wenn zur Nummer mehrere Teile gehören und die Wahl schon
+    // getroffen ist – dann bucht der Server ohne weitere Rückfrage.
+    teilId: ziel.teilId ?? null,
   });
   return response.data;
 };

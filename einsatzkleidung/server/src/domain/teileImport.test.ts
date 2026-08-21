@@ -29,6 +29,10 @@ const ANNA: Person = {
   id: 1, name: 'Müller, Anna', atemschutz: true, tauglichBis: null, aktiv: true, notiz: null,
 };
 
+const BERND: Person = {
+  id: 2, name: 'Schmitt, Bernd', atemschutz: false, tauglichBis: null, aktiv: true, notiz: null,
+};
+
 const teil = (ueber: Partial<Kleidungsstueck> = {}): Kleidungsstueck => ({
   id: 1,
   nummer: '1042-07/19',
@@ -53,7 +57,7 @@ const teil = (ueber: Partial<Kleidungsstueck> = {}): Kleidungsstueck => ({
 const bestand = (ueber: Partial<{ teile: Kleidungsstueck[]; typen: Teiletyp[]; personen: Person[] }> = {}) => ({
   teile: [],
   typen: [JACKE, HELM],
-  personen: [ANNA],
+  personen: [ANNA, BERND],
   ...ueber,
 });
 
@@ -262,4 +266,70 @@ test('Fehlerzeile blockiert die Nummer nicht für eine spätere, saubere Zeile',
   );
   assert.equal(bericht.fehler, 1);
   assert.equal(bericht.neu, 1);
+});
+
+test('dieselbe Nummer darf mehrfach vorkommen, wenn der Träger sie trennt', () => {
+  // Steht auf dem Etikett die Nummer der Lieferung, tragen alle Jacken daraus
+  // dieselbe. Das ist kein Fehler, solange klar ist, wer welche hat.
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Träger\n'
+    + '6072-10/23;Überjacke HuPF Teil 1;Müller, Anna\n'
+    + '6072-10/23;Überjacke HuPF Teil 1;Schmitt, Bernd\n',
+    bestand(),
+    'ueberspringen',
+  );
+
+  assert.equal(bericht.fehler, 0);
+  assert.equal(bericht.neu, 2);
+});
+
+test('zwei Zeilen mit gleicher Nummer, Typ und Träger sind eine Dublette', () => {
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Träger\n'
+    + '6072-10/23;Überjacke HuPF Teil 1;Müller, Anna\n'
+    + '6072-10/23;Überjacke HuPF Teil 1;Müller, Anna\n',
+    bestand(),
+    'ueberspringen',
+  );
+
+  assert.equal(bericht.neu, 1);
+  assert.equal(bericht.fehler, 1);
+  assert.match(bericht.zeilen[1].meldung ?? '', /Zeile 2/);
+});
+
+test('der Träger entscheidet, welches der gleichnamigen Teile aktualisiert wird', () => {
+  const vorhanden = bestand({
+    teile: [
+      teil({ id: 1, nummer: '6072-10/23', personId: ANNA.id, groesse: '52' }),
+      teil({ id: 2, nummer: '6072-10/23', personId: BERND.id, groesse: '54' }),
+    ],
+  });
+
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Träger;Größe\n6072-10/23;Überjacke HuPF Teil 1;Schmitt, Bernd;56\n',
+    vorhanden,
+    'aktualisieren',
+  );
+
+  assert.equal(bericht.aktualisiert, 1);
+  assert.equal(bericht.zeilen[0].teilId, 2);
+});
+
+test('sind zwei Teile im Bestand nicht unterscheidbar, rät der Import nicht', () => {
+  const vorhanden = bestand({
+    teile: [
+      teil({ id: 1, nummer: '6072-10/23', personId: null }),
+      teil({ id: 2, nummer: '6072-10/23', personId: null }),
+    ],
+  });
+
+  const bericht = analysiereTeileImport(
+    'Nummer;Typ;Träger;Größe\n6072-10/23;Überjacke HuPF Teil 1;;56\n',
+    vorhanden,
+    'aktualisieren',
+  );
+
+  assert.equal(bericht.aktualisiert, 0);
+  assert.equal(bericht.fehler, 1);
+  assert.equal(bericht.zeilen[0].teilId, null);
 });

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { PersonMitAusstattung, TeilFormData, TeilMitDetails, Teiletyp } from '../../../types/kleidung';
 import { createTeil, updateTeil } from '../../../services/api';
+import { NUMMER_HINWEIS, NUMMER_MUSTER, formatiereNummer } from '../../../constants/kleidung';
 import styles from '../Kleidung.module.css';
 
 interface Props {
@@ -12,14 +13,6 @@ interface Props {
   onClose: () => void;
   onGespeichert: () => Promise<void>;
 }
-
-/** Aus Ziffern wird XXXX-XX/XX – niemand soll beim Erfassen Sonderzeichen tippen. */
-const formatiereNummer = (eingabe: string): string => {
-  const ziffern = eingabe.replace(/[^0-9]/g, '').slice(0, 8);
-  if (ziffern.length <= 4) return ziffern;
-  if (ziffern.length <= 6) return `${ziffern.slice(0, 4)}-${ziffern.slice(4)}`;
-  return `${ziffern.slice(0, 4)}-${ziffern.slice(4, 6)}/${ziffern.slice(6)}`;
-};
 
 export const TeilDialog: React.FC<Props> = ({ teil, nummerVorgabe, typen, personen, onClose, onGespeichert }) => {
   const [nummer, setNummer] = useState(teil?.nummer ?? nummerVorgabe ?? '');
@@ -44,8 +37,8 @@ export const TeilDialog: React.FC<Props> = ({ teil, nummerVorgabe, typen, person
       setFehler('Bitte einen Teiletyp wählen.');
       return;
     }
-    if (!/^\d{4}-\d{2}\/\d{2}$/.test(nummer)) {
-      setFehler('Die Nummer muss dem Muster XXXX-XX/XX folgen.');
+    if (!NUMMER_MUSTER.test(nummer)) {
+      setFehler(`Die Nummer muss dem Muster ${NUMMER_HINWEIS} folgen.`);
       return;
     }
 
@@ -106,7 +99,10 @@ export const TeilDialog: React.FC<Props> = ({ teil, nummerVorgabe, typen, person
               required
               autoFocus
             />
-            <p className={styles.formHinweis}>Die aufgedruckte Nummer, Muster XXXX-XX/XX.</p>
+            <p className={styles.formHinweis}>
+              Die aufgedruckte Nummer, Muster {NUMMER_HINWEIS}. Sie darf mehrfach vorkommen –
+              steht auf dem Etikett die Nummer der Lieferung, unterscheiden Typ und Träger die Teile.
+            </p>
           </div>
 
           <div className={styles.formGroup}>

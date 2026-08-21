@@ -22,9 +22,17 @@ export interface Scannen {
   ergebnisse: ScanErgebnis[];
   /** Codes ohne zugeordnetes Teil – bleiben stehen, bis sie erledigt sind. */
   offeneCodes: ScanErgebnis[];
+  /**
+   * Codes, zu denen mehrere Teile passen. Gebucht ist noch nichts – sie
+   * bleiben stehen, bis eines gewählt oder der Scan verworfen wurde.
+   */
+  offeneAuswahl: ScanErgebnis[];
   busy: boolean;
   verarbeite: (code: string) => Promise<void>;
+  /** Buchung nachholen, nachdem aus mehreren Teilen eines gewählt wurde. */
+  waehleTeil: (code: string, teilId: number) => Promise<void>;
   verwerfeOffenen: (code: string) => void;
+  verwerfeAuswahl: (code: string) => void;
   leeren: () => void;
 }
 
@@ -34,6 +42,7 @@ export const useScannen = (nachAenderung: () => Promise<void>): Scannen => {
   const [personId, setPersonId] = useState<number | null>(null);
   const [ergebnisse, setErgebnisse] = useState<ScanErgebnis[]>([]);
   const [offeneCodes, setOffeneCodes] = useState<ScanErgebnis[]>([]);
+  const [offeneAuswahl, setOffeneAuswahl] = useState<ScanErgebnis[]>([]);
   const [busy, setBusy] = useState(false);
 
   // Der Scan kommt aus einem Callback, der beim Koppeln festgehalten wurde –
@@ -58,6 +67,10 @@ export const useScannen = (nachAenderung: () => Promise<void>): Scannen => {
         // Ein schnell scannendes Handy liefert mehrere unbekannte Codes
         // hintereinander – jeder einzelne soll zuordenbar bleiben.
         setOffeneCodes(prev => (prev.some(o => o.code === ergebnis.code) ? prev : [...prev, ergebnis]));
+      } else if (ergebnis.status === 'mehrdeutig') {
+        // Nichts gebucht: Der Code steht als Auswahl an, bis geklärt ist,
+        // welches der gleichnamigen Teile gemeint war.
+        setOffeneAuswahl(prev => (prev.some(o => o.code === ergebnis.code) ? prev : [...prev, ergebnis]));
       } else if (aktuellerVorgang !== 'lookup') {
         await nachAenderungRef.current();
       }
@@ -70,6 +83,32 @@ export const useScannen = (nachAenderung: () => Promise<void>): Scannen => {
         codeArt: 'nummer',
         code: roh,
         teil: null,
+        kandidaten: [],
+      };
+      setErgebnisse(prev => [gescheitert, ...prev].slice(0, 25));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const waehleTeil = useCallback(async (code: string, teilId: number) => {
+    const { vorgang: aktuellerVorgang, chargeId: ziel, personId: empfaenger } = einstellungen.current;
+    setBusy(true);
+    try {
+      const ergebnis = await scanne(code, aktuellerVorgang, { chargeId: ziel, personId: empfaenger, teilId });
+      setErgebnisse(prev => [ergebnis, ...prev].slice(0, 25));
+      // Erst nach der geglückten Buchung verschwindet die Auswahl – bleibt sie
+      // stehen, kann derselbe Scan ohne erneutes Scannen wiederholt werden.
+      setOffeneAuswahl(prev => prev.filter(o => o.code !== code));
+      if (aktuellerVorgang !== 'lookup') await nachAenderungRef.current();
+    } catch (err) {
+      const gescheitert: ScanErgebnis = {
+        status: 'unbekannt',
+        meldung: err instanceof Error ? err.message : 'Buchung fehlgeschlagen.',
+        codeArt: 'nummer',
+        code,
+        teil: null,
+        kandidaten: [],
       };
       setErgebnisse(prev => [gescheitert, ...prev].slice(0, 25));
     } finally {
@@ -81,9 +120,14 @@ export const useScannen = (nachAenderung: () => Promise<void>): Scannen => {
     setOffeneCodes(prev => prev.filter(o => o.code !== code));
   }, []);
 
+  const verwerfeAuswahl = useCallback((code: string) => {
+    setOffeneAuswahl(prev => prev.filter(o => o.code !== code));
+  }, []);
+
   const leeren = useCallback(() => {
     setErgebnisse([]);
     setOffeneCodes([]);
+    setOffeneAuswahl([]);
   }, []);
 
   return {
@@ -95,9 +139,12 @@ export const useScannen = (nachAenderung: () => Promise<void>): Scannen => {
     setPersonId,
     ergebnisse,
     offeneCodes,
+    offeneAuswahl,
     busy,
     verarbeite,
+    waehleTeil,
     verwerfeOffenen,
+    verwerfeAuswahl,
     leeren,
   };
 };

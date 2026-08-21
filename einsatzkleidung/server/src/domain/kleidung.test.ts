@@ -81,6 +81,14 @@ test('Nummerncode akzeptiert nur das Muster XXXX-XX/XX', () => {
   assert.equal(istNummer('ABCD-07/19'), false);
 });
 
+test('Der vordere Block darf vier bis zehn Ziffern lang sein', () => {
+  // Je nach Hersteller steht vorne die Werksauftrags- oder die Chargennummer.
+  assert.equal(istNummer('6072-10/23'), true);
+  assert.equal(istNummer('842298-01/30'), true);
+  assert.equal(istNummer('1234567890-04/25'), true);
+  assert.equal(istNummer('12345678901-04/25'), false);
+});
+
 test('Nummerncode wird aus tolerant getippten Eingaben gebildet', () => {
   assert.equal(normalisiereNummer(' 1042-07/19 '), '1042-07/19');
   assert.equal(normalisiereNummer('10420719'), '1042-07/19');
@@ -88,9 +96,18 @@ test('Nummerncode wird aus tolerant getippten Eingaben gebildet', () => {
   assert.equal(normalisiereNummer('1042-07-19'), '1042-07/19');
 });
 
+test('Auch bei langem vorderem Block bleiben die letzten vier Ziffern XX/XX', () => {
+  // Die Aufteilung hängt nur an der Ziffernzahl, nicht am getippten Trenner:
+  // Deshalb kommt aus derselben Ziffernfolge immer dieselbe Nummer.
+  assert.equal(normalisiereNummer('8422980130'), '842298-01/30');
+  assert.equal(normalisiereNummer('842298 01 30'), '842298-01/30');
+  assert.equal(normalisiereNummer('842298-01/30'), '842298-01/30');
+  assert.equal(normalisiereNummer('12345678900425'), '1234567890-04/25');
+});
+
 test('Zu kurze oder zu lange Eingaben ergeben keine Nummer', () => {
   assert.equal(normalisiereNummer('1042071'), null);
-  assert.equal(normalisiereNummer('104207199'), null);
+  assert.equal(normalisiereNummer('123456789012345'), null);
   assert.equal(normalisiereNummer(''), null);
 });
 

@@ -485,10 +485,10 @@ router.post('/personen/import', [
 // KLEIDUNGSSTÜCKE
 // ===========================
 
-const NUMMER_HINWEIS = 'Die Nummer muss dem Muster XXXX-XX/XX folgen.';
+const NUMMER_HINWEIS = 'Die Nummer muss dem Muster XXXX-XX/XX folgen – vorne sind vier bis zehn Ziffern erlaubt.';
 
 const teilValidierung = [
-  body('nummer').trim().isLength({ min: 4, max: 20 }).withMessage(NUMMER_HINWEIS),
+  body('nummer').trim().isLength({ min: 8, max: 24 }).withMessage(NUMMER_HINWEIS),
   body('typId').isInt({ min: 1 }).withMessage('Teiletyp ist Pflicht'),
   body('groesse').optional({ nullable: true }).isLength({ max: 20 }),
   body('hersteller').optional({ nullable: true }).isLength({ max: 60 }),
@@ -502,12 +502,16 @@ const teilValidierung = [
   handleValidation,
 ];
 
-/** Nummer und Matrixcode müssen im ganzen Bestand eindeutig sein. */
-function pruefeCodesFrei(data: KleidungData, nummer: string, matrixCode: string | null, eigeneId: number | null): void {
-  const doppelteNummer = data.teile.find(t => t.nummer === nummer && t.id !== eigeneId);
-  if (doppelteNummer) {
-    throw fehler(409, `Die Nummer ${nummer} gehört schon zu einem anderen Teil.`);
-  }
+/**
+ * Der Matrixcode muss im ganzen Bestand eindeutig sein – er ist der einzige
+ * Code, der ein einzelnes Teil sicher benennt.
+ *
+ * Die **Nummer nicht**: Auf vielen Etiketten steht die Nummer des ganzen
+ * Fertigungsloses, nicht die des einzelnen Stücks. Zwei Jacken aus derselben
+ * Lieferung tragen dieselbe Nummer. Unterschieden werden sie über Typ und
+ * Träger; wo das nicht reicht, fragt der Scan nach.
+ */
+function pruefeMatrixCodeFrei(data: KleidungData, matrixCode: string | null, eigeneId: number | null): void {
   if (matrixCode) {
     const doppelterCode = data.teile.find(t => t.matrixCode === matrixCode && t.id !== eigeneId);
     if (doppelterCode) {
@@ -698,7 +702,7 @@ router.post('/teile', teilValidierung, async (req: Request, res: Response) => {
       if (!nummer) throw fehler(400, NUMMER_HINWEIS);
 
       const matrixCode = req.body.matrixCode ? normalisiereMatrixCode(req.body.matrixCode as string) : null;
-      pruefeCodesFrei(data, nummer, matrixCode, null);
+      pruefeMatrixCodeFrei(data, matrixCode, null);
 
       const typ = typOderFehler(data, Number(req.body.typId));
       const personId = zahlOderNull(req.body.personId);
@@ -756,7 +760,7 @@ router.put('/teile/:id', [param('id').isInt({ min: 1 }), ...teilValidierung], as
       const nummer = normalisiereNummer(req.body.nummer as string);
       if (!nummer) throw fehler(400, NUMMER_HINWEIS);
       const matrixCode = req.body.matrixCode ? normalisiereMatrixCode(req.body.matrixCode as string) : null;
-      pruefeCodesFrei(data, nummer, matrixCode, id);
+      pruefeMatrixCodeFrei(data, matrixCode, id);
 
       const typ = typOderFehler(data, Number(req.body.typId));
       const personId = zahlOderNull(req.body.personId);
@@ -866,7 +870,7 @@ router.post('/teile/:id/matrixcode', [
       const roh = text(req.body.code);
       const code = roh ? normalisiereMatrixCode(roh) : null;
       if (roh && !code) throw fehler(400, 'Der Matrixcode ist zu kurz oder zu lang.');
-      pruefeCodesFrei(data, eintrag.nummer, code, id);
+      pruefeMatrixCodeFrei(data, code, id);
 
       eintrag.matrixCode = code;
       protokolliere(data, {
@@ -1389,19 +1393,34 @@ const SCAN_VORGAENGE: ScanVorgang[] = ['waesche', 'zurueck', 'ausgabe', 'rueckna
  * Ein gescannter Code kann beides sein: die aufgedruckte Nummer oder der
  * Matrixcode am Etikett. Erst die Nummer versuchen – sie ist das Muster, das
  * wir kennen; alles andere gilt als Matrixcode und wird nur nachgeschlagen.
+ *
+ * Zur Nummer können mehrere Teile gehören: Steht auf dem Etikett die Nummer
+ * des Fertigungsloses, tragen alle Stücke einer Lieferung dieselbe. Deshalb
+ * eine Liste statt eines Treffers – wer gemeint ist, entscheidet der Anwender.
+ * Der Matrixcode bleibt eindeutig und liefert höchstens ein Teil.
  */
-function findeTeilZuCode(data: KleidungData, roh: string): {
+function findeTeileZuCode(data: KleidungData, roh: string): {
   codeArt: 'nummer' | 'matrix';
   code: string;
-  teil: Kleidungsstueck | null;
+  teile: Kleidungsstueck[];
 } {
   const nummer = normalisiereNummer(roh);
   if (nummer) {
-    return { codeArt: 'nummer', code: nummer, teil: data.teile.find(t => t.nummer === nummer) ?? null };
+    return { codeArt: 'nummer', code: nummer, teile: data.teile.filter(t => t.nummer === nummer) };
   }
 
   const matrix = normalisiereMatrixCode(roh) ?? roh.trim();
-  return { codeArt: 'matrix', code: matrix, teil: data.teile.find(t => t.matrixCode === matrix) ?? null };
+  return { codeArt: 'matrix', code: matrix, teile: data.teile.filter(t => t.matrixCode === matrix) };
+}
+
+/**
+ * Ausgesonderte Teile stehen einer Buchung im Weg, ohne dass sie noch gemeint
+ * sein könnten. Sie fliegen aus der Auswahl – es sei denn, es bleibt sonst
+ * nichts übrig, dann soll der Scan sie zeigen statt „nicht gefunden" zu melden.
+ */
+function bevorzugeAktive(teile: Kleidungsstueck[]): Kleidungsstueck[] {
+  const aktive = teile.filter(t => t.status !== 'ausgesondert');
+  return aktive.length > 0 ? aktive : teile;
 }
 
 router.post('/scan', [
@@ -1409,6 +1428,9 @@ router.post('/scan', [
   body('vorgang').isIn(SCAN_VORGAENGE).withMessage('Unbekannter Vorgang'),
   body('chargeId').optional({ nullable: true }).isInt({ min: 1 }),
   body('personId').optional({ nullable: true }).isInt({ min: 1 }),
+  // Gehören zur Nummer mehrere Teile, kommt der zweite Aufruf mit der
+  // getroffenen Wahl zurück – dann ist der Code nur noch Beleg.
+  body('teilId').optional({ nullable: true }).isInt({ min: 1 }),
   handleValidation,
 ], async (req: Request, res: Response) => {
   const sperre = scanBremse.sperre(req);
@@ -1419,10 +1441,11 @@ router.post('/scan', [
   try {
     const ergebnis = await withFileLock(DATA_PATH, async (): Promise<ScanErgebnis> => {
       const data = await loadData();
-      const treffer = findeTeilZuCode(data, req.body.code as string);
+      const treffer = findeTeileZuCode(data, req.body.code as string);
       const vorgang = req.body.vorgang as ScanVorgang;
+      const gewaehlt = zahlOderNull(req.body.teilId);
 
-      if (!treffer.teil) {
+      if (treffer.teile.length === 0) {
         scanBremse.fehlschlag(req);
         return {
           status: 'unbekannt',
@@ -1432,11 +1455,34 @@ router.post('/scan', [
           codeArt: treffer.codeArt,
           code: treffer.code,
           teil: null,
+          kandidaten: [],
         };
       }
 
       scanBremse.zuruecksetzen(req);
-      const teil = treffer.teil;
+      const moegliche = bevorzugeAktive(treffer.teile);
+
+      // Mehrere Teile zur selben Nummer: Nicht raten, sondern zur Auswahl
+      // stellen. Gebucht wird erst, wenn die Wahl mit zurückkommt.
+      let teil: Kleidungsstueck;
+      if (gewaehlt !== null) {
+        const wahl = moegliche.find(t => t.id === gewaehlt);
+        if (!wahl) throw fehler(409, 'Das gewählte Teil gehört nicht zu diesem Code. Bitte neu scannen.');
+        teil = wahl;
+      } else if (moegliche.length > 1) {
+        const detail = alsDetail(data);
+        return {
+          status: 'mehrdeutig',
+          meldung: `Zur Nummer ${treffer.code} gehören ${moegliche.length} Teile. Bitte auswählen.`,
+          codeArt: treffer.codeArt,
+          code: treffer.code,
+          teil: null,
+          kandidaten: moegliche.map(detail),
+        };
+      } else {
+        teil = moegliche[0];
+      }
+
       const benutzer = benutzerVon(req);
       let meldung: string;
 
@@ -1506,6 +1552,7 @@ router.post('/scan', [
         codeArt: treffer.codeArt,
         code: treffer.code,
         teil: detail,
+        kandidaten: [],
       };
     });
 

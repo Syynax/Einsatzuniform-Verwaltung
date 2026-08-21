@@ -3,7 +3,7 @@ import type { ChargeMitTeilen, PersonMitAusstattung, ScanVorgang, TeilMitDetails
 import type { ScanKopplung } from '../../../hooks/useScanKopplung';
 import type { Scannen } from '../../../hooks/useScannen';
 import { setMatrixCode, tritteScanSitzungBei, meldeScan } from '../../../services/api';
-import { ANLASS_TEXT, zeitpunkt } from '../../../constants/kleidung';
+import { ANLASS_TEXT, NUMMER_HINWEIS, formatiereNummer, zeitpunkt } from '../../../constants/kleidung';
 import styles from '../Kleidung.module.css';
 
 /**
@@ -50,17 +50,37 @@ const merkeSender = (id: string | null): void => {
 // Minimale Typen für die native BarcodeDetector-API (noch nicht in lib.dom).
 interface DetectedBarcode { rawValue: string }
 interface BarcodeDetectorLike { detect(source: CanvasImageSource): Promise<DetectedBarcode[]> }
-interface BarcodeDetectorCtor { new (options?: { formats?: string[] }): BarcodeDetectorLike }
+interface BarcodeDetectorCtor {
+  new (options?: { formats?: string[] }): BarcodeDetectorLike;
+  /** Statisch und plattformabhängig – nicht jede Umgebung bringt sie mit. */
+  getSupportedFormats?(): Promise<string[]>;
+}
 
 const getDetectorCtor = (): BarcodeDetectorCtor | undefined =>
   (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
 
-/** Tippen soll ohne Sonderzeichen gehen: aus Ziffern wird XXXX-XX/XX. */
-const formatiereNummer = (eingabe: string): string => {
-  const ziffern = eingabe.replace(/[^0-9]/g, '').slice(0, 8);
-  if (ziffern.length <= 4) return ziffern;
-  if (ziffern.length <= 6) return `${ziffern.slice(0, 4)}-${ziffern.slice(4)}`;
-  return `${ziffern.slice(0, 4)}-${ziffern.slice(4, 6)}/${ziffern.slice(6)}`;
+// Data Matrix ist das Format am Etikett; die übrigen sind mitgenommen, damit
+// auch aufgeklebte Barcodes funktionieren. PDF417 steht auf Herstelleretiketten
+// (etwa der LHD Group) und trägt dort die stückgenaue Seriennummer, Aztec
+// taucht auf vergleichbaren Industrie- und PSA-Etiketten auf.
+const WUNSCH_FORMATE = [
+  'data_matrix', 'qr_code', 'code_128', 'code_39', 'ean_13', 'pdf417', 'aztec',
+];
+
+/**
+ * Schneidet die Wunschliste auf das, was der Browser wirklich kann – ein
+ * unbekanntes Format lässt den Konstruktor sonst werfen und der Scanner bliebe
+ * ganz aus. Lässt sich das nicht ermitteln, bleibt es bei der vollen Liste:
+ * schlechter als vorher soll der Scanner dadurch nie dastehen.
+ */
+const ermittleFormate = async (Ctor: BarcodeDetectorCtor): Promise<string[]> => {
+  try {
+    const unterstuetzt = await Ctor.getSupportedFormats?.();
+    if (!unterstuetzt || unterstuetzt.length === 0) return WUNSCH_FORMATE;
+    return WUNSCH_FORMATE.filter(format => unterstuetzt.includes(format));
+  } catch {
+    return WUNSCH_FORMATE;
+  }
 };
 
 interface Props {
@@ -91,6 +111,10 @@ export const ScanTab: React.FC<Props> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | undefined>(undefined);
+  // Zählt jeden Start und jeden Stopp mit. Zwischen den `await`s im Start-Pfad
+  // kann die Kamera längst wieder aus sein (Moduswechsel, Unmount); an dieser
+  // Nummer erkennt der Start, dass er nicht mehr der aktuelle ist.
+  const laufRef = useRef(0);
   const lastRef = useRef<{ code: string; t: number }>({ code: '', t: 0 });
   const [scanning, setScanning] = useState(false);
   const [camError, setCamError] = useState<string | null>(null);
@@ -121,6 +145,7 @@ export const ScanTab: React.FC<Props> = ({
   }, [scannen, zielCharge, offeneChargen]);
 
   const stop = () => {
+    laufRef.current += 1;
     if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current);
     rafRef.current = undefined;
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -196,19 +221,27 @@ export const ScanTab: React.FC<Props> = ({
     const Ctor = getDetectorCtor();
     if (!Ctor) return;
     setCamError(null);
+    const lauf = laufRef.current + 1;
+    laufRef.current = lauf;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      // Wurde inzwischen gestoppt, gehört dieser Stream niemandem mehr – er
+      // muss trotzdem freigegeben werden, sonst leuchtet die Kamera weiter.
+      if (laufRef.current !== lauf) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+      const formate = await ermittleFormate(Ctor);
+      if (laufRef.current !== lauf) return;
       setScanning(true);
-      // Data Matrix ist das Format am Etikett; die übrigen sind mitgenommen,
-      // damit auch aufgeklebte Barcodes funktionieren.
-      const detector = new Ctor({
-        formats: ['data_matrix', 'qr_code', 'code_128', 'code_39', 'ean_13'],
-      });
+      // Ohne unterstütztes Format ist die Vorgabe des Browsers immer noch
+      // besser als ein leeres Array, das gar nichts mehr fände.
+      const detector = formate.length > 0 ? new Ctor({ formats: formate }) : new Ctor();
       const tick = async () => {
         const video = videoRef.current;
         if (video && video.readyState >= 2) {
@@ -415,7 +448,7 @@ export const ScanTab: React.FC<Props> = ({
                 {scanning && <span className={styles.kameraRahmen} />}
                 <div className={styles.kameraHinweis}>
                   {scanning
-                    ? 'Etikett ins Feld halten – Nummerncode XXXX-XX/XX oder Matrixcode.'
+                    ? `Etikett ins Feld halten – Nummerncode (${NUMMER_HINWEIS}) oder Matrixcode.`
                     : 'Kamera ist aus.'}
                 </div>
               </>
@@ -482,11 +515,23 @@ export const ScanTab: React.FC<Props> = ({
           {letztes && (
             <div
               className={`${styles.scanFeedback} ${
-                letztes.status === 'ok' ? styles.scanOk : letztes.status === 'hinweis' ? styles.scanWarn : styles.scanFehler
+                letztes.status === 'ok'
+                  ? styles.scanOk
+                  // Mehrdeutig ist kein Fehler, sondern eine offene Frage –
+                  // deshalb gelb wie ein Hinweis, nicht rot.
+                  : letztes.status === 'hinweis' || letztes.status === 'mehrdeutig'
+                    ? styles.scanWarn
+                    : styles.scanFehler
               }`}
             >
               <i
-                className={`fas ${letztes.status === 'unbekannt' ? 'fa-circle-question' : 'fa-circle-check'}`}
+                className={`fas ${
+                  letztes.status === 'unbekannt'
+                    ? 'fa-circle-question'
+                    : letztes.status === 'mehrdeutig'
+                      ? 'fa-list-ul'
+                      : 'fa-circle-check'
+                }`}
                 aria-hidden="true"
               ></i>
               <div>
@@ -517,7 +562,13 @@ export const ScanTab: React.FC<Props> = ({
                         onClick={() => ergebnis.teil && onTeil(ergebnis.teil.id)}
                       >
                         <td className={styles.mono}>{ergebnis.code}</td>
-                        <td>{ergebnis.teil?.typName ?? <span className={styles.soft}>unbekannt</span>}</td>
+                        <td>
+                          {ergebnis.teil?.typName ?? (
+                            <span className={styles.soft}>
+                              {ergebnis.status === 'mehrdeutig' ? `${ergebnis.kandidaten.length} Teile` : 'unbekannt'}
+                            </span>
+                          )}
+                        </td>
                         <td>
                           <span className={`${styles.badge} ${ergebnis.codeArt === 'nummer' ? styles.bPool : styles.bWash}`}>
                             {ergebnis.codeArt === 'nummer' ? 'Nummer' : 'Matrix'}
@@ -531,6 +582,53 @@ export const ScanTab: React.FC<Props> = ({
               </div>
             </section>
           )}
+
+          {scannen.offeneAuswahl.map(offen => (
+            <section key={offen.code} className={`${styles.card} ${styles.scanUnbekannt}`}>
+              <div className={styles.cardHead}>
+                <h3 className={styles.cardTitle} style={{ fontSize: '1rem' }}>Welches Teil?</h3>
+                <span className={`${styles.badge} ${styles.bWarn}`}>{offen.kandidaten.length} Treffer</span>
+              </div>
+              <div className={styles.mono} style={{ fontWeight: 700, marginBottom: '0.25rem' }}>{offen.code}</div>
+              <p className={styles.soft} style={{ marginTop: 0 }}>
+                Diese Nummer gehört zu mehreren Teilen. Gebucht ist noch nichts – erst die Auswahl bucht.
+              </p>
+
+              <div className={styles.tableWrapper}>
+                <table className={styles.table}>
+                  <tbody>
+                    {offen.kandidaten.map(kandidat => (
+                      <tr key={kandidat.id}>
+                        <td>{kandidat.typName}</td>
+                        <td>{kandidat.personName ?? <span className={styles.soft}>Pool</span>}</td>
+                        <td className={styles.soft}>{kandidat.groesse ?? ''}</td>
+                        <td className={styles.soft}>{kandidat.standort ?? ''}</td>
+                        <td>
+                          <button
+                            className={styles.btnPrimary}
+                            onClick={() => void scannen.waehleTeil(offen.code, kandidat.id)}
+                            type="button"
+                            disabled={scannen.busy}
+                          >
+                            Dieses
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <button
+                className={styles.btnSecondary}
+                onClick={() => scannen.verwerfeAuswahl(offen.code)}
+                type="button"
+                style={{ marginTop: '0.75rem' }}
+              >
+                Verwerfen
+              </button>
+            </section>
+          ))}
 
           {scannen.offeneCodes.map(offen => (
             <section key={offen.code} className={`${styles.card} ${styles.scanUnbekannt}`}>
