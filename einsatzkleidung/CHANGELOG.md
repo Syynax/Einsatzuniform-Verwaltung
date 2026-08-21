@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.2.0
+
+Vier Änderungen: eine Korrektur an der Prüflogik, zwei Stellen, die falsche
+Daten erzeugt haben, und zwei neue Wege, Kleidung zu erfassen.
+
+- **Prüfung nie eingetragen ist nicht mehr „in Ordnung"** – ein Teil, dessen
+  Typ ein Prüfintervall hat, das aber nie geprüft wurde, war bisher grün und
+  tauchte in keiner Kennzahl auf. Nach einem Import meldete die Übersicht
+  „0 Prüfungen fällig" für lauter ungeprüfte Teile. Solche Teile zählen jetzt
+  gleich schwer wie überfällige
+- **Prüftermine melden sich 30 Tage vorher**, statt erst nach Ablauf. Damit
+  lassen sich Prüfungen bündeln, statt sie einzeln nachzuholen
+- **CSV-Import für Kleidungsstücke** (Kleidung → CSV) – derselbe zweistufige
+  Weg wie bei den Personen: erst die Vorschau Zeile für Zeile, dann
+  übernehmen. Typ und Träger werden über den Namen gesucht und nie still
+  angelegt; ein Tippfehler ergibt eine Fehlerzeile statt eines zweiten
+  Teiletyps neben dem richtigen
+- **Etiketten drucken** (Kleidung → Etiketten) – ein Bogen mit QR-Code je
+  Teil, für Helme, Stiefel und Altbestand ohne Herstelleretikett. Der Code
+  enthält nur die aufgedruckte Nummer, also liest ihn der vorhandene Scanner
+  sofort. **Der Scanner bleibt unverändert: Nummer und Matrixcode
+  funktionieren weiter nebeneinander**
+- **Chargen lassen sich in Teilen zurückmelden** – kommen zehn von zwölf
+  Teilen vom Dienstleister zurück, zählte der Rückmelde-Knopf bisher zwei
+  Wäschen mit, die nie stattgefunden haben. Jetzt wird abgehakt, was da ist;
+  die Charge bleibt offen, bis der Rest folgt
+- **Änderungen an Waschzähler, Prüfdatum und Stammdaten stehen im Verlauf** –
+  über den Bearbeiten-Dialog ließen sie sich bisher spurlos überschreiben,
+  obwohl direkt daneben ein Endpunkt existiert, der genau das protokolliert
+- **Löschen entfernt keine Belege mehr** – ein Teil mit Historie wird
+  ausgesondert statt gelöscht. Löschen bleibt für die Fehlanlage möglich
+
 ## 1.1.0
 
 - **Personen aus einer CSV übernehmen** – neuer Knopf „CSV" im Tab *Personen*.

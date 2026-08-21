@@ -11,9 +11,9 @@ aber genauso für die übrige Einsatzkleidung.
 | Tab | Inhalt |
 | --- | --- |
 | **Übersicht** | Was ansteht: Teile an der Waschgrenze, fällige Prüfungen, offene Reparaturen, laufende Wäsche und die letzten Vorgänge |
-| **Kleidung** | Alle Teile als Kacheln mit Waschzähler-Ampel, Filter nach Typ und Status, Volltextsuche über Nummer, Typ und Träger |
+| **Kleidung** | Alle Teile als Kacheln mit Waschzähler-Ampel, Filter nach Typ und Status, Volltextsuche über Nummer, Typ und Träger. Erfassen einzeln, als CSV-Import oder mit gedruckten Etiketten |
 | **Scannen** | Nummerncode (`XXXX-XX/XX`) und Matrixcode – wahlweise mit der Kamera, getippt oder über ein gekoppeltes Handy |
-| **Wäsche** | Chargen: Teile einsammeln, abgeben, zurückmelden. Erst die Rückmeldung zählt die Waschzähler hoch |
+| **Wäsche** | Chargen: Teile einsammeln, abgeben, zurückmelden – ganz oder in Teilen. Erst die Rückmeldung zählt die Waschzähler hoch |
 | **Personen** | Einsatzkräfte mit ihrer Ausstattung, Atemschutz-Kennzeichnung und dem, was in der Sollausstattung fehlt. Anlegen einzeln oder als CSV-Import |
 | **Auswertung** | Wäschen pro Monat, nach Anlass, Belastung je Teiletyp und der komplette Verlauf |
 
@@ -153,6 +153,99 @@ haben. Eine **leere Zelle in der Status-Spalte** bedeutet dagegen „nichts
 gesagt" und legt niemanden still. Und wie im Personendialog gilt: Ohne
 Atemschutz wird die Tauglichkeit verworfen, auch wenn eine in der Datei steht.
 
+## Kleidungsstücke aus einer CSV übernehmen
+
+Der Weg für den Umstieg: **Kleidung → CSV** liest eine ganze Bestandsliste ein,
+statt jedes Teil einzeln über den Dialog anzulegen. Ablauf und Bedienung sind
+dieselben wie beim Personenimport – erst eine Vorschau Zeile für Zeile,
+geschrieben wird nichts, bevor unten „… übernehmen" gedrückt ist.
+
+**Vorher anlegen:** Der Import legt weder Teiletypen noch Personen an. Beides
+wird über den Namen gesucht, und ein unbekannter Name ergibt eine Fehlerzeile.
+Das ist Absicht: Aus einem Tippfehler in der Typspalte soll kein zweiter
+Teiletyp neben dem richtigen entstehen. Also zuerst die Typen unter
+**Kleidung → Typen** anlegen und die Personen importieren.
+
+### Spalten
+
+Pflicht sind **Nummer** und **Typ**, alles andere darf fehlen:
+
+| Spalte | Auch erkannt als | Inhalt |
+| --- | --- | --- |
+| `Nummer` | Nr, Teilenummer, Inventarnummer | `XXXX-XX/XX`; eine reine Ziffernfolge wie `10420719` wird umgesetzt |
+| `Typ` | Teiletyp, Art, Bezeichnung | Name eines angelegten Teiletyps |
+| `Größe` | Gr, Konfektionsgröße | freier Text |
+| `Träger` | Person, Zugeordnet, Besitzer | Name einer angelegten Person; leer heißt Pool |
+| `Hersteller` | Marke, Fabrikat | freier Text |
+| `Beschaffung` | Beschafft, Anschaffung | `2019-07`, `07/2019`, `15.07.2019` |
+| `Standort` | Spind, Lagerort, Ablage | freier Text |
+| `Waschzähler` | Waschzyklen, Wäschen | Zahl; beim Umstieg der bisherige Stand |
+| `Letzte Prüfung` | Prüfdatum, Geprüft am | `2026-03-15` oder `15.03.2026` |
+| `Letzte Wäsche` | Gewaschen am | wie oben |
+| `Matrixcode` | Code, Barcode, Etikett | Herstellercode, falls schon bekannt |
+| `Notiz` | Bemerkung, Hinweis | höchstens 300 Zeichen |
+
+Trenner, Kodierung und Anführungszeichen behandelt der Import wie beim
+Personenimport – Semikolon aus dem deutschen Excel, Windows-1252 und UTF-8.
+Über **Muster herunterladen** gibt es eine Beispieldatei, in der die Typnamen
+schon aus dem eigenen Bestand stehen.
+
+**Den bisherigen Waschzählerstand gleich mit eintragen.** Er ist die Grundlage
+für Ampel und Aussonderung; wer bei null anfängt, verschenkt die Historie aus
+der Papierliste.
+
+### Was der Import ablehnt
+
+Fehlerhafte Zeilen werden übersprungen, nicht der ganze Import. In der Vorschau
+stehen sie mit Zeilennummer und Grund; ein Filter **nur Fehler** blendet den
+Rest aus:
+
+- Nummer fehlt oder passt nicht auf `XXXX-XX/XX`
+- dieselbe Nummer steht in der Datei mehrfach
+- Teiletyp oder Träger ist nicht angelegt
+- ein Datum ergibt keinen Kalendertag – ein `31.02.2026` ist ein Tippfehler und
+  wird nicht stillschweigend auf den 3. März geschoben
+- ein Matrixcode gehört schon zu einem anderen Teil
+- ein Waschzähler steht bei einem Typ, der keinen führt (Helm, Stiefel)
+
+### Wenn die Nummer schon erfasst ist
+
+**Überspringen** lässt das vorhandene Teil unangetastet, **Aktualisieren**
+übernimmt die Felder aus der Datei. Auch dann gilt: Geändert wird nur, was in
+der Datei steht – eine Liste ohne Standortspalte lässt den Standort stehen.
+
+Status, laufende Wäsche und die Historie fasst der Import nie an. Ändert er
+einen Waschzähler oder ein Prüfdatum, steht das anschließend im Verlauf des
+Teils, genau wie eine Änderung über den Dialog.
+
+## Etiketten drucken
+
+Scannen setzt voraus, dass am Teil etwas Maschinenlesbares klebt. Bei Helmen,
+Stiefeln und älterer Kleidung ist das oft nicht der Fall. **Kleidung →
+Etiketten** druckt dafür einen Bogen: je Teil ein QR-Code, daneben Nummer, Typ,
+Größe und Träger im Klartext.
+
+Der QR-Code enthält **nur die aufgedruckte Nummer**. Damit liest ihn der
+vorhandene Scanner sofort – es muss nichts angelernt werden. Für Teile mit
+Hersteller-Matrixcode ändert sich nichts; **beide Wege funktionieren
+unverändert nebeneinander**, der Scanner erkennt weiterhin Nummer *und*
+Matrixcode.
+
+Gedruckt wird, was im Dialog steht: Der Bogen übernimmt die Filter des
+Kleidung-Tabs, ein Klick auf das ✕ nimmt ein Etikett heraus, und **nur ohne
+Code** beschränkt ihn auf die Teile, die noch nicht scannbar sind. Zwei bis
+fünf Etiketten pro Zeile sind einstellbar.
+
+Vor dem Drucken im Dialog des Browsers **Hintergrundgrafiken einschalten** und
+die Skalierung auf 100 % stellen, sonst schrumpfen die Codes. Ein Etikett ist
+rund 65 × 21 mm groß, der Code darin 17 mm.
+
+> **Das Etikett muss die Wäsche überstehen.** Thermotransfer- oder
+> Textiletiketten nehmen, kein normales Papier – die Kleidung geht bei 60 °C in
+> die Maschine und danach in den Trockner. Erst einen Bogen auf Papier probe
+> drucken und einen Testscan machen, bevor teures Material durch den Drucker
+> geht.
+
 ## Teiletypen, Waschgrenze und Ampel
 
 Alles, was für mehrere Teile gleich gilt, hängt am Typ:
@@ -167,7 +260,25 @@ Alles, was für mehrere Teile gleich gilt, hängt am Typ:
   Typs nachgezogen.
 
 Die Ampel an jeder Kachel: grün heißt unauffällig, gelb heißt Warnschwelle
-erreicht oder Prüfung fällig oder in Reparatur, rot heißt Höchstzahl erreicht.
+erreicht, Prüfung steht in den nächsten 30 Tagen an oder das Teil ist in
+Reparatur; rot heißt Höchstzahl erreicht, Prüfung überfällig oder nie
+eingetragen.
+
+### Prüfungen melden sich mit Vorlauf
+
+Ein Prüftermin wird nicht erst gemeldet, wenn er verstrichen ist: **30 Tage
+vorher** steht das Teil mit seinem Datum in der Übersicht, unter „Prüfung in
+30 Tagen". So lassen sich Prüfungen bündeln, statt sie einzeln nachzuholen.
+
+Ein eigener Fall ist **„Prüfung nie eingetragen"**. Hat der Teiletyp ein
+Prüfintervall, am Teil steht aber kein Prüfdatum, dann gilt das Teil als
+fällig – nicht als in Ordnung. Bei persönlicher Schutzausrüstung wäre eine
+Entwarnung an einer Stelle, an der nie jemand hingesehen hat, die
+gefährlichste Auskunft von allen.
+
+Nach dem Umstieg von einer Papierliste trifft das zunächst auf viele Teile
+zu. Die Übersicht sagt das ausdrücklich dazu; der Hinweis verschwindet,
+sobald die alten Prüftermine nachgetragen sind.
 
 ## Zuordnung: fester Träger oder Pool
 
@@ -190,6 +301,12 @@ Der Ablauf ist bewusst dreistufig:
    läuft. Reine Statusinformation.
 3. **Zurück** – erst hier steigt bei jedem Teil der Waschzähler um 1, es bekommt
    das Datum der letzten Wäsche und geht zurück in den Dienst.
+
+Kommt eine Charge **nicht vollständig** zurück – beim Dienstleister bleiben
+einzelne Teile gern eine Woche länger –, dann werden in der Teileliste der
+Charge nur die abgehakt, die tatsächlich da sind. Der Waschzähler steigt nur
+bei diesen, und die Charge bleibt offen, bis auch der Rest zurückgemeldet ist.
+Vorangehakt ist alles: Der Normalfall bleibt ein Klick.
 
 Warum erst am Ende gezählt wird: Eine Charge, die doch nicht gewaschen wurde,
 soll keine Zähler verbrauchen. Vor dem Zurückmelden zeigt die Tabelle bereits,

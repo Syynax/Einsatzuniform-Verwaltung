@@ -14,9 +14,9 @@ Läuft als Add-on in Home Assistant und erscheint als eigener Punkt
 | Tab | Inhalt |
 | --- | --- |
 | **Übersicht** | Teile an der Waschgrenze, fällige Prüfungen, offene Reparaturen, laufende Wäsche, letzte Vorgänge |
-| **Kleidung** | Alle Teile als Kacheln mit Waschzähler-Ampel, Filter nach Typ und Status, Suche über Nummer, Typ und Träger |
+| **Kleidung** | Alle Teile als Kacheln mit Waschzähler-Ampel, Filter nach Typ und Status, Suche über Nummer, Typ und Träger. Erfassen einzeln, als CSV-Import oder mit gedruckten QR-Etiketten |
 | **Scannen** | Nummerncode `XXXX-XX/XX` und Matrixcode – mit der Kamera, getippt oder über ein gekoppeltes Handy |
-| **Wäsche** | Chargen: einsammeln, abgeben, zurückmelden. Erst die Rückmeldung zählt die Waschzähler hoch |
+| **Wäsche** | Chargen: einsammeln, abgeben, zurückmelden – ganz oder in Teilen. Erst die Rückmeldung zählt die Waschzähler hoch |
 | **Personen** | Einsatzkräfte mit Ausstattung, Atemschutz-Kennzeichnung und dem, was in der Sollausstattung fehlt. Anlegen einzeln oder als CSV-Import |
 | **Auswertung** | Wäschen pro Monat, nach Anlass, Belastung je Teiletyp, kompletter Verlauf |
 
@@ -29,8 +29,13 @@ Dazu:
 - **Atomare Dateiablage**: geschrieben wird über eine Nebendatei. Ist der
   Datenbestand beschädigt, startet das Add-on bewusst nicht, statt ihn zu
   überschreiben
+- **Prüffristen mit Vorlauf** – ein Termin meldet sich 30 Tage vorher, und ein
+  Teil ohne eingetragene Prüfung gilt als fällig statt als unauffällig
+- **Nachweis lückenlos** – Änderungen an Waschzähler, Prüfdatum und Stammdaten
+  stehen im Verlauf des Teils, egal ob sie aus dem Dialog oder aus einem Import
+  kommen. Ein Teil mit Historie wird ausgesondert, nicht gelöscht
 - **Kein Internet nötig** – das Add-on baut keine ausgehende Verbindung auf,
-  Font Awesome ist mitgebaut
+  Font Awesome und der QR-Erzeuger sind mitgebaut
 
 ## Installation
 
