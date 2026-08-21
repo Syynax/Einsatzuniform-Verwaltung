@@ -188,10 +188,18 @@ export interface Auswertung {
 /** Was der Scan auslösen soll – wird vor dem Scannen gewählt. */
 export type ScanVorgang = 'waesche' | 'zurueck' | 'ausgabe' | 'ruecknahme' | 'lookup';
 
+/**
+ * Was gescannt werden soll. `auto` errät es am Muster – das geht schief,
+ * sobald ein Herstellercode aus lauter Ziffern besteht und dabei zufällig auf
+ * das Nummernmuster passt. Wer weiss, was er vor der Kamera hat, sagt es.
+ */
+export type ScanCodeArt = 'auto' | 'nummer' | 'matrix';
+
 export interface ScanErgebnis {
   status: 'ok' | 'unbekannt' | 'hinweis' | 'mehrdeutig';
   meldung: string;
-  codeArt: 'nummer' | 'matrix';
+  /** Wie der Code gelesen wurde. `ungueltig`: kein Nummerncode, obwohl einer erwartet war. */
+  codeArt: 'nummer' | 'matrix' | 'ungueltig';
   code: string;
   teil: TeilMitDetails | null;
   /**

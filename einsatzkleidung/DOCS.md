@@ -345,11 +345,39 @@ Gescannt werden zwei Dinge:
   zweiter Weg zur Zuordnung. Ein unbekannter Matrixcode lässt sich im Scan-Tab
   einem vorhandenen Teil zuordnen („anlernen").
 
-**Vor dem Scannen wird gewählt, was passieren soll:** in die Wäsche (mit
+### Erst sagen, was gescannt wird
+
+Über dem Scanner steht **Was wird gescannt** mit drei Einstellungen. Sie
+entscheidet, wonach die Kamera sucht und wie ein gelesener Code gedeutet wird:
+
+| Einstellung | Kamera sucht nach | Deutung |
+| --- | --- | --- |
+| **Beides** | allen Formaten | Nur eine fertig formatierte `XXXX-XX/XX` gilt als Nummer, alles andere als Matrixcode |
+| **Nummerncode** | QR, Code 128, Code 39 | Alles wird als Nummer gelesen; auch eine reine Ziffernfolge wird umgesetzt |
+| **Matrixcode** | Data Matrix, PDF417, Aztec, QR, Code 128, EAN | Alles gilt als Matrixcode und wird nie in eine Nummer umgeschrieben |
+
+**Warum das nötig ist:** Ein Herstellercode besteht oft aus lauter Ziffern –
+eine EAN, eine Lectra-Nummer, eine numerische Seriennummer. Da der vordere
+Block der Nummer unterschiedlich lang sein darf, passt so ein Code rein
+mechanisch auf das Nummernmuster, ohne je eine Nummer zu sein. Aus
+`4056677123456` würde sonst die erfundene Nummer `405667712-34/56`.
+
+Deshalb gilt in **Beides** nur die formatierte Schreibweise. Der eigene
+Etikettenbogen druckt immer `XXXX-XX/XX`, also funktioniert er dort
+unverändert. Wer die Nummer bloss als Ziffernfolge vorliegen hat, stellt auf
+**Nummerncode** um.
+
+Die Einstellung gilt auch für ein gekoppeltes Handy und übersteht den Wechsel
+in einen anderen Tab. Wird sie geändert, geht die Kamera aus: Die Formate
+stecken im laufenden Scanner fest und werden erst beim nächsten Start neu
+gesetzt.
+
+**Vor dem Scannen wird ausserdem gewählt, was passieren soll:** in die Wäsche (mit
 Ziel-Charge), Wäsche zurück, Ausgabe an eine Person, Rückgabe in den Pool oder
 nur nachschlagen. Ohne diese Wahl wüsste ein Scan nicht, was er auslösen soll.
 
-Die Kamera nutzt die `BarcodeDetector`-API mit den Formaten Data Matrix, QR,
+Die Kamera nutzt die `BarcodeDetector`-API. Angefragt werden je nach
+Einstellung die Formate Data Matrix, QR,
 Code 128, Code 39, EAN-13, PDF417 und Aztec. Welche davon tatsächlich gelesen
 werden, entscheidet der Browser: Die Anwendung fragt die unterstützten Formate
 ab und sucht nur nach denen, die die Plattform mitbringt. Damit das funktioniert,
@@ -427,6 +455,8 @@ neu starten.
 | Scan meldet „kein Teil angelegt" | Die Nummer gibt es noch nicht – erst das Teil anlegen |
 | Scan fragt „Welches Teil?" | Mehrere Teile tragen diese Nummer. Am Träger erkennen, welches gemeint ist, und auswählen – gebucht ist noch nichts |
 | Matrixcode wird nicht erkannt | Er ist noch keinem Teil zugeordnet. Im Scan-Tab unter „Unbekannter Code" anlernen |
+| Scan meldet „kein Nummerncode" | Es war ein Nummerncode eingestellt, gelesen wurde ein Herstellercode. Oben auf „Matrixcode" umstellen |
+| Herstellercode wird als Nummer gelesen | Die Einstellung steht auf „Nummerncode". Auf „Matrixcode" oder „Beides" umstellen |
 | „Für die Wäsche fehlt die Charge" | Im Scan-Tab oben eine offene Charge wählen oder anlegen |
 | Teiletyp lässt sich nicht löschen | Es hängen noch Teile daran. Erst umtragen oder löschen |
 | Person lässt sich nicht löschen | Es sind noch Teile ausgegeben. Erst zurücknehmen |

@@ -7,6 +7,7 @@ import type {
   Kleidungsstueck,
   Person,
   PersonMitAusstattung,
+  ScanCodeArt,
   ScanErgebnis,
   TeilMitDetails,
   TeilStatus,
@@ -27,6 +28,7 @@ import {
   aenderungsText,
   auswertung as berechneAuswertung,
   brauchtAufmerksamkeit,
+  istNummer,
   mitDetails,
   nachDringlichkeit,
   naechsteChargenNummer,
@@ -1388,29 +1390,54 @@ const scanBremse = erzeugeBremse(60, 5 * 60 * 1000);
 
 type ScanVorgang = 'waesche' | 'zurueck' | 'ausgabe' | 'ruecknahme' | 'lookup';
 const SCAN_VORGAENGE: ScanVorgang[] = ['waesche', 'zurueck', 'ausgabe', 'ruecknahme', 'lookup'];
+const SCAN_CODE_ARTEN: ScanCodeArt[] = ['auto', 'nummer', 'matrix'];
 
 /**
- * Ein gescannter Code kann beides sein: die aufgedruckte Nummer oder der
- * Matrixcode am Etikett. Erst die Nummer versuchen – sie ist das Muster, das
- * wir kennen; alles andere gilt als Matrixcode und wird nur nachgeschlagen.
+ * Zwei getrennte Wege, denselben Bestand zu finden.
  *
- * Zur Nummer können mehrere Teile gehören: Steht auf dem Etikett die Nummer
- * des Fertigungsloses, tragen alle Stücke einer Lieferung dieselbe. Deshalb
- * eine Liste statt eines Treffers – wer gemeint ist, entscheidet der Anwender.
- * Der Matrixcode bleibt eindeutig und liefert höchstens ein Teil.
+ * **Nummerncode**: die aufgedruckte Nummer. Zu ihr können mehrere Teile
+ * gehören – steht auf dem Etikett die Nummer des Fertigungsloses, tragen alle
+ * Stücke einer Lieferung dieselbe. Deshalb eine Liste statt eines Treffers;
+ * wer gemeint ist, entscheidet der Anwender.
+ *
+ * **Matrixcode**: der rohe Wert vom Etikett, nicht ausgewertet. Er bleibt
+ * eindeutig und liefert höchstens ein Teil.
+ *
+ * `auto` errät die Art am Muster. Das ist bequem, aber unzuverlässig, seit der
+ * vordere Block der Nummer unterschiedlich lang sein darf: Eine EAN oder eine
+ * numerische Seriennummer besteht aus lauter Ziffern und passt damit auf das
+ * Nummernmuster, ohne je eine Nummer zu sein. Wer weiss, was vor der Kamera
+ * liegt, wählt die Art – dann wird nichts geraten.
  */
-function findeTeileZuCode(data: KleidungData, roh: string): {
-  codeArt: 'nummer' | 'matrix';
+function findeTeileZuCode(data: KleidungData, roh: string, art: ScanCodeArt): {
+  codeArt: 'nummer' | 'matrix' | 'ungueltig';
   code: string;
   teile: Kleidungsstueck[];
 } {
-  const nummer = normalisiereNummer(roh);
+  const alsMatrix = () => {
+    const matrix = normalisiereMatrixCode(roh) ?? roh.trim();
+    return { codeArt: 'matrix' as const, code: matrix, teile: data.teile.filter(t => t.matrixCode === matrix) };
+  };
+
+  if (art === 'matrix') return alsMatrix();
+
+  // Im Automatikmodus zählt nur die fertig formatierte Nummer. Die tolerante
+  // Umsetzung einer nackten Ziffernfolge bleibt dem ausdrücklichen Nummernscan
+  // vorbehalten: Der eigene Etikettenbogen druckt immer `XXXX-XX/XX`, während
+  // eine EAN oder eine numerische Seriennummer nur aus Ziffern besteht. Ohne
+  // diese Trennung würde aus 4056677123456 die erfundene Nummer 405667712-34/56.
+  const nummer = art === 'nummer' ? normalisiereNummer(roh) : (istNummer(roh) ? roh.trim() : null);
   if (nummer) {
     return { codeArt: 'nummer', code: nummer, teile: data.teile.filter(t => t.nummer === nummer) };
   }
 
-  const matrix = normalisiereMatrixCode(roh) ?? roh.trim();
-  return { codeArt: 'matrix', code: matrix, teile: data.teile.filter(t => t.matrixCode === matrix) };
+  // Ausdrücklich ein Nummerncode erwartet, aber keiner gelesen: Das ist etwas
+  // anderes als eine unbekannte Nummer und darf nicht zum Anlegen einladen.
+  if (art === 'nummer') {
+    return { codeArt: 'ungueltig', code: roh.trim(), teile: [] };
+  }
+
+  return alsMatrix();
 }
 
 /**
@@ -1426,6 +1453,8 @@ function bevorzugeAktive(teile: Kleidungsstueck[]): Kleidungsstueck[] {
 router.post('/scan', [
   body('code').trim().isLength({ min: 3, max: 200 }).withMessage('Der Code ist zu kurz oder zu lang'),
   body('vorgang').isIn(SCAN_VORGAENGE).withMessage('Unbekannter Vorgang'),
+  // Fehlt die Angabe, bleibt es beim Raten – ältere Clients buchen weiter.
+  body('codeArt').optional({ nullable: true }).isIn(SCAN_CODE_ARTEN).withMessage('Unbekannte Codeart'),
   body('chargeId').optional({ nullable: true }).isInt({ min: 1 }),
   body('personId').optional({ nullable: true }).isInt({ min: 1 }),
   // Gehören zur Nummer mehrere Teile, kommt der zweite Aufruf mit der
@@ -1441,7 +1470,8 @@ router.post('/scan', [
   try {
     const ergebnis = await withFileLock(DATA_PATH, async (): Promise<ScanErgebnis> => {
       const data = await loadData();
-      const treffer = findeTeileZuCode(data, req.body.code as string);
+      const art = (text(req.body.codeArt) || 'auto') as ScanCodeArt;
+      const treffer = findeTeileZuCode(data, req.body.code as string, art);
       const vorgang = req.body.vorgang as ScanVorgang;
       const gewaehlt = zahlOderNull(req.body.teilId);
 
@@ -1449,9 +1479,11 @@ router.post('/scan', [
         scanBremse.fehlschlag(req);
         return {
           status: 'unbekannt',
-          meldung: treffer.codeArt === 'nummer'
-            ? `Zur Nummer ${treffer.code} ist kein Teil angelegt.`
-            : 'Dieser Matrixcode ist keinem Teil zugeordnet.',
+          meldung: treffer.codeArt === 'ungueltig'
+            ? `"${treffer.code}" ist kein Nummerncode. Für Herstellercodes auf Matrixcode umstellen.`
+            : treffer.codeArt === 'nummer'
+              ? `Zur Nummer ${treffer.code} ist kein Teil angelegt.`
+              : 'Dieser Matrixcode ist keinem Teil zugeordnet.',
           codeArt: treffer.codeArt,
           code: treffer.code,
           teil: null,

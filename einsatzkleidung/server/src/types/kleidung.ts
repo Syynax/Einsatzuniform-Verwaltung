@@ -193,10 +193,18 @@ export interface Auswertung {
 }
 
 /** Ergebnis eines Scans – dieselbe Form für Nummerncode und Matrixcode. */
+/**
+ * Was gescannt werden soll. `auto` errät es am Muster – das geht schief,
+ * sobald ein Herstellercode aus lauter Ziffern besteht und dabei zufällig auf
+ * das Nummernmuster passt. Wer weiss, was er vor der Kamera hat, sagt es.
+ */
+export type ScanCodeArt = 'auto' | 'nummer' | 'matrix';
+
 export interface ScanErgebnis {
   status: 'ok' | 'unbekannt' | 'hinweis' | 'mehrdeutig';
   meldung: string;
-  codeArt: 'nummer' | 'matrix';
+  /** Wie der Code gelesen wurde. `ungueltig`: kein Nummerncode, obwohl einer erwartet war. */
+  codeArt: 'nummer' | 'matrix' | 'ungueltig';
   code: string;
   teil: TeilMitDetails | null;
   /**

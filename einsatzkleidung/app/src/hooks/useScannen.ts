@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { scanne } from '../services/api';
-import type { ScanErgebnis, ScanVorgang } from '../types/kleidung';
+import type { ScanCodeArt, ScanErgebnis, ScanVorgang } from '../types/kleidung';
 
 /**
  * Der Scan-Vorgang lebt bewusst über dem Scan-Tab.
@@ -12,6 +12,9 @@ import type { ScanErgebnis, ScanVorgang } from '../types/kleidung';
 export interface Scannen {
   vorgang: ScanVorgang;
   setVorgang: (vorgang: ScanVorgang) => void;
+  /** Was vor der Kamera liegt – Nummerncode, Matrixcode oder raten lassen. */
+  codeArt: ScanCodeArt;
+  setCodeArt: (art: ScanCodeArt) => void;
   /** Ziel-Charge für „In die Wäsche". */
   chargeId: number | null;
   setChargeId: (id: number | null) => void;
@@ -38,6 +41,7 @@ export interface Scannen {
 
 export const useScannen = (nachAenderung: () => Promise<void>): Scannen => {
   const [vorgang, setVorgang] = useState<ScanVorgang>('waesche');
+  const [codeArt, setCodeArt] = useState<ScanCodeArt>('auto');
   const [chargeId, setChargeId] = useState<number | null>(null);
   const [personId, setPersonId] = useState<number | null>(null);
   const [ergebnisse, setErgebnisse] = useState<ScanErgebnis[]>([]);
@@ -47,8 +51,10 @@ export const useScannen = (nachAenderung: () => Promise<void>): Scannen => {
 
   // Der Scan kommt aus einem Callback, der beim Koppeln festgehalten wurde –
   // ohne Refs würde er mit veralteten Einstellungen buchen.
-  const einstellungen = useRef({ vorgang, chargeId, personId });
-  useEffect(() => { einstellungen.current = { vorgang, chargeId, personId }; }, [vorgang, chargeId, personId]);
+  const einstellungen = useRef({ vorgang, chargeId, personId, codeArt });
+  useEffect(() => {
+    einstellungen.current = { vorgang, chargeId, personId, codeArt };
+  }, [vorgang, chargeId, personId, codeArt]);
 
   const nachAenderungRef = useRef(nachAenderung);
   useEffect(() => { nachAenderungRef.current = nachAenderung; });
@@ -57,10 +63,10 @@ export const useScannen = (nachAenderung: () => Promise<void>): Scannen => {
     const roh = code.trim();
     if (!roh) return;
 
-    const { vorgang: aktuellerVorgang, chargeId: ziel, personId: empfaenger } = einstellungen.current;
+    const { vorgang: aktuellerVorgang, chargeId: ziel, personId: empfaenger, codeArt: art } = einstellungen.current;
     setBusy(true);
     try {
-      const ergebnis = await scanne(roh, aktuellerVorgang, { chargeId: ziel, personId: empfaenger });
+      const ergebnis = await scanne(roh, aktuellerVorgang, { chargeId: ziel, personId: empfaenger, codeArt: art });
       setErgebnisse(prev => [ergebnis, ...prev].slice(0, 25));
 
       if (ergebnis.status === 'unbekannt') {
@@ -92,10 +98,12 @@ export const useScannen = (nachAenderung: () => Promise<void>): Scannen => {
   }, []);
 
   const waehleTeil = useCallback(async (code: string, teilId: number) => {
-    const { vorgang: aktuellerVorgang, chargeId: ziel, personId: empfaenger } = einstellungen.current;
+    const { vorgang: aktuellerVorgang, chargeId: ziel, personId: empfaenger, codeArt: art } = einstellungen.current;
     setBusy(true);
     try {
-      const ergebnis = await scanne(code, aktuellerVorgang, { chargeId: ziel, personId: empfaenger, teilId });
+      const ergebnis = await scanne(code, aktuellerVorgang, {
+        chargeId: ziel, personId: empfaenger, teilId, codeArt: art,
+      });
       setErgebnisse(prev => [ergebnis, ...prev].slice(0, 25));
       // Erst nach der geglückten Buchung verschwindet die Auswahl – bleibt sie
       // stehen, kann derselbe Scan ohne erneutes Scannen wiederholt werden.
@@ -133,6 +141,8 @@ export const useScannen = (nachAenderung: () => Promise<void>): Scannen => {
   return {
     vorgang,
     setVorgang,
+    codeArt,
+    setCodeArt,
     chargeId,
     setChargeId,
     personId,

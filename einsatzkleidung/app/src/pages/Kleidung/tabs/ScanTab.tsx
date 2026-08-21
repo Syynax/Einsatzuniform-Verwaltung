@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChargeMitTeilen, PersonMitAusstattung, ScanVorgang, TeilMitDetails } from '../../../types/kleidung';
+import type {
+  ChargeMitTeilen, PersonMitAusstattung, ScanCodeArt, ScanVorgang, TeilMitDetails,
+} from '../../../types/kleidung';
 import type { ScanKopplung } from '../../../hooks/useScanKopplung';
 import type { Scannen } from '../../../hooks/useScannen';
 import { setMatrixCode, tritteScanSitzungBei, meldeScan } from '../../../services/api';
@@ -59,12 +61,27 @@ interface BarcodeDetectorCtor {
 const getDetectorCtor = (): BarcodeDetectorCtor | undefined =>
   (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
 
-// Data Matrix ist das Format am Etikett; die übrigen sind mitgenommen, damit
-// auch aufgeklebte Barcodes funktionieren. PDF417 steht auf Herstelleretiketten
-// (etwa der LHD Group) und trägt dort die stückgenaue Seriennummer, Aztec
-// taucht auf vergleichbaren Industrie- und PSA-Etiketten auf.
-const WUNSCH_FORMATE = [
-  'data_matrix', 'qr_code', 'code_128', 'code_39', 'ean_13', 'pdf417', 'aztec',
+/**
+ * Die beiden Codearten sitzen auf verschiedenen Etiketten und in verschiedenen
+ * Formaten – deshalb sucht die Kamera je Art nur nach dem, was dort wirklich
+ * vorkommt. Das ist nicht nur schneller, es verhindert vor allem, dass ein
+ * Herstellercode als Nummer durchgeht.
+ *
+ * - **Nummerncode** steht im selbst gedruckten Etikettenbogen, und der erzeugt
+ *   QR. Code 128 und Code 39 sind für aufgeklebte Fremdetiketten dabei.
+ * - **Matrixcode** kommt vom Hersteller: Data Matrix, PDF417 (LHD Group, mit
+ *   der stückgenauen Seriennummer), Aztec, dazu EAN für Handelsware.
+ */
+const FORMATE: Record<ScanCodeArt, string[]> = {
+  nummer: ['qr_code', 'code_128', 'code_39'],
+  matrix: ['data_matrix', 'pdf417', 'aztec', 'qr_code', 'code_128', 'ean_13'],
+  auto: ['data_matrix', 'qr_code', 'code_128', 'code_39', 'ean_13', 'pdf417', 'aztec'],
+};
+
+const CODE_ARTEN: { id: ScanCodeArt; label: string; hinweis: string }[] = [
+  { id: 'auto', label: 'Beides', hinweis: 'Rät am Muster – bequem, aber bei reinen Ziffercodes unzuverlässig.' },
+  { id: 'nummer', label: 'Nummerncode', hinweis: 'Nur die aufgedruckte Nummer, etwa vom eigenen Etikettenbogen.' },
+  { id: 'matrix', label: 'Matrixcode', hinweis: 'Nur Herstellercodes. Der Inhalt wird nicht ausgewertet.' },
 ];
 
 /**
@@ -73,13 +90,13 @@ const WUNSCH_FORMATE = [
  * ganz aus. Lässt sich das nicht ermitteln, bleibt es bei der vollen Liste:
  * schlechter als vorher soll der Scanner dadurch nie dastehen.
  */
-const ermittleFormate = async (Ctor: BarcodeDetectorCtor): Promise<string[]> => {
+const ermittleFormate = async (Ctor: BarcodeDetectorCtor, wunsch: string[]): Promise<string[]> => {
   try {
     const unterstuetzt = await Ctor.getSupportedFormats?.();
-    if (!unterstuetzt || unterstuetzt.length === 0) return WUNSCH_FORMATE;
-    return WUNSCH_FORMATE.filter(format => unterstuetzt.includes(format));
+    if (!unterstuetzt || unterstuetzt.length === 0) return wunsch;
+    return wunsch.filter(format => unterstuetzt.includes(format));
   } catch {
-    return WUNSCH_FORMATE;
+    return wunsch;
   }
 };
 
@@ -157,6 +174,9 @@ export const ScanTab: React.FC<Props> = ({
   useEffect(() => () => stop(), []);
   // Beim Moduswechsel ebenfalls – sonst leuchtet sie im Hintergrund weiter.
   useEffect(() => { stop(); }, [modus]);
+  // Die Formate stecken im erzeugten Detector fest. Wechselt die Codeart, muss
+  // die Kamera neu gestartet werden, sonst suchte sie weiter nach den alten.
+  useEffect(() => { stop(); }, [scannen.codeArt]);
 
   // --- Sender: Codes ans gekoppelte Gerät schicken ---
 
@@ -236,7 +256,7 @@ export const ScanTab: React.FC<Props> = ({
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-      const formate = await ermittleFormate(Ctor);
+      const formate = await ermittleFormate(Ctor, FORMATE[scannen.codeArt]);
       if (laufRef.current !== lauf) return;
       setScanning(true);
       // Ohne unterstütztes Format ist die Vorgabe des Browsers immer noch
@@ -309,6 +329,26 @@ export const ScanTab: React.FC<Props> = ({
           </button>
         ))}
       </div>
+
+      {modus !== 'senden' && (
+        <div className={styles.scanZiel}>
+          <span className={styles.label} style={{ marginRight: '0.25rem' }}>Was wird gescannt</span>
+          {CODE_ARTEN.map(eintrag => (
+            <button
+              key={eintrag.id}
+              className={`${styles.chip} ${scannen.codeArt === eintrag.id ? styles.chipAktiv : ''}`}
+              onClick={() => scannen.setCodeArt(eintrag.id)}
+              type="button"
+              title={eintrag.hinweis}
+            >
+              {eintrag.label}
+            </button>
+          ))}
+          <span className={styles.soft} style={{ flexBasis: '100%', marginTop: '0.35rem' }}>
+            {CODE_ARTEN.find(e => e.id === scannen.codeArt)?.hinweis}
+          </span>
+        </div>
+      )}
 
       {modus !== 'senden' && (
         <div className={styles.scanZiel}>
@@ -438,7 +478,11 @@ export const ScanTab: React.FC<Props> = ({
         <section className={styles.card}>
           <div className={styles.cardHead}>
             <h3 className={styles.cardTitle}>Kamera</h3>
-            <span className={`${styles.badge} ${styles.bOk}`}>Nummerncode + Matrixcode</span>
+            <span className={`${styles.badge} ${styles.bOk}`}>
+              {scannen.codeArt === 'nummer' ? 'Nur Nummerncode'
+                : scannen.codeArt === 'matrix' ? 'Nur Matrixcode'
+                  : 'Nummerncode + Matrixcode'}
+            </span>
           </div>
 
           <div className={styles.kamera}>
@@ -448,7 +492,11 @@ export const ScanTab: React.FC<Props> = ({
                 {scanning && <span className={styles.kameraRahmen} />}
                 <div className={styles.kameraHinweis}>
                   {scanning
-                    ? `Etikett ins Feld halten – Nummerncode (${NUMMER_HINWEIS}) oder Matrixcode.`
+                    ? scannen.codeArt === 'nummer'
+                      ? `Etikett ins Feld halten – gesucht wird der Nummerncode (${NUMMER_HINWEIS}).`
+                      : scannen.codeArt === 'matrix'
+                        ? 'Etikett ins Feld halten – gesucht wird der Matrixcode des Herstellers.'
+                        : `Etikett ins Feld halten – Nummerncode (${NUMMER_HINWEIS}) oder Matrixcode.`
                     : 'Kamera ist aus.'}
                 </div>
               </>
@@ -481,9 +529,13 @@ export const ScanTab: React.FC<Props> = ({
             <input
               className={styles.handFeld}
               value={handEingabe}
-              onChange={e => setHandEingabe(formatiereNummer(e.target.value))}
+              onChange={e => setHandEingabe(
+                // Ein Matrixcode ist beliebiger Text – die Ziffernformatierung
+                // würde ihn beim Tippen zerstören.
+                scannen.codeArt === 'matrix' ? e.target.value : formatiereNummer(e.target.value),
+              )}
               onKeyDown={e => { if (e.key === 'Enter') uebernehmen(); }}
-              placeholder="1042-07/19"
+              placeholder={scannen.codeArt === 'matrix' ? 'Code vom Etikett' : '1042-07/19'}
               aria-label="Nummerncode eintippen"
             />
             <button
@@ -633,19 +685,46 @@ export const ScanTab: React.FC<Props> = ({
           {scannen.offeneCodes.map(offen => (
             <section key={offen.code} className={`${styles.card} ${styles.scanUnbekannt}`}>
               <div className={styles.cardHead}>
-                <h3 className={styles.cardTitle} style={{ fontSize: '1rem' }}>Unbekannter Code</h3>
+                <h3 className={styles.cardTitle} style={{ fontSize: '1rem' }}>
+                  {offen.codeArt === 'ungueltig' ? 'Kein Nummerncode' : 'Unbekannter Code'}
+                </h3>
                 <span className={`${styles.badge} ${styles.bWarn}`}>
-                  {offen.codeArt === 'nummer' ? 'Nummer' : 'Matrixcode'}
+                  {offen.codeArt === 'nummer' ? 'Nummer'
+                    : offen.codeArt === 'matrix' ? 'Matrixcode'
+                      : 'nicht lesbar'}
                 </span>
               </div>
               <div className={styles.mono} style={{ fontWeight: 700, marginBottom: '0.25rem' }}>{offen.code}</div>
               <p className={styles.soft} style={{ marginTop: 0 }}>
                 {offen.codeArt === 'matrix'
                   ? 'Der Inhalt wird nicht ausgewertet – der Code dient nur als Zuordnung zu einem Teil.'
-                  : 'Zu dieser Nummer ist noch kein Teil angelegt.'}
+                  : offen.codeArt === 'ungueltig'
+                    ? 'Gesucht war ein Nummerncode, gelesen wurde etwas anderes. Ist das ein Herstellercode, '
+                      + 'oben auf „Matrixcode" umstellen – dann lässt er sich einem Teil zuordnen.'
+                    : 'Zu dieser Nummer ist noch kein Teil angelegt.'}
               </p>
 
-              {offen.codeArt === 'matrix' ? (
+              {offen.codeArt === 'ungueltig' ? (
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    className={styles.btnPrimary}
+                    onClick={() => {
+                      scannen.setCodeArt('matrix');
+                      scannen.verwerfeOffenen(offen.code);
+                    }}
+                    type="button"
+                  >
+                    Als Matrixcode scannen
+                  </button>
+                  <button
+                    className={styles.btnSecondary}
+                    onClick={() => scannen.verwerfeOffenen(offen.code)}
+                    type="button"
+                  >
+                    Verwerfen
+                  </button>
+                </div>
+              ) : offen.codeArt === 'matrix' ? (
                 <div className={styles.handEingabe}>
                   <select
                     className={styles.suche}

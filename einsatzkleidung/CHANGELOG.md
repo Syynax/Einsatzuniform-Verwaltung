@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.3.1
+
+Nachbesserung an 1.3.0: Der längere vordere Block hat die Codeerkennung
+gefräßig gemacht.
+
+- **Nummerncode und Matrixcode sind getrennte Scanner.** Über dem Scanner
+  steht jetzt, was gelesen werden soll: Beides, Nummerncode oder Matrixcode.
+  Je Einstellung sucht die Kamera nur nach den Formaten, die dort vorkommen,
+  und ein gelesener Code wird nicht mehr umgedeutet
+- **Kein erfundener Nummerncode mehr.** Seit 1.3.0 galt jede Ziffernfolge von
+  acht bis vierzehn Stellen als Nummer – eine EAN, eine Lectra-Nummer oder
+  eine numerische Seriennummer passte damit mechanisch auf das Muster, ohne je
+  eine Nummer zu sein. Aus `4056677123456` wurde `405667712-34/56` und der
+  Scan meldete „kein Teil angelegt". In **Beides** zählt jetzt nur noch die
+  fertig formatierte Schreibweise, wie sie der eigene Etikettenbogen druckt;
+  die tolerante Umsetzung einer reinen Ziffernfolge bleibt der Einstellung
+  **Nummerncode** vorbehalten
+- **Ein Matrixcode lässt sich von Hand eintippen.** Das Eingabefeld hat bisher
+  alles ausser Ziffern verworfen, ein Herstellercode war darüber nicht
+  einzugeben
+
 ## 1.3.0
 
 Die aufgedruckte Nummer ist jetzt das Kennzeichen des Teils, auch wenn sie

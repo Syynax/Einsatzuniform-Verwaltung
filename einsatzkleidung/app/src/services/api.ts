@@ -13,6 +13,7 @@ import type {
   PersonImportBericht,
   PersonImportModus,
   PersonMitAusstattung,
+  ScanCodeArt,
   ScanEreignis,
   ScanErgebnis,
   ScanSitzung,
@@ -339,11 +340,19 @@ export const verwerfeCharge = async (id: number): Promise<void> => {
 export const scanne = async (
   code: string,
   vorgang: ScanVorgang,
-  ziel: { chargeId?: number | null; personId?: number | null; teilId?: number | null } = {},
+  ziel: {
+    chargeId?: number | null;
+    personId?: number | null;
+    teilId?: number | null;
+    codeArt?: ScanCodeArt;
+  } = {},
 ): Promise<ScanErgebnis> => {
   const response = await api.post<ScanErgebnis>('/kleidung/scan', {
     code,
     vorgang,
+    // Ohne Angabe rät der Server am Muster – das geht bei reinen
+    // Ziffercodes schief, deshalb sagt die Oberfläche es ausdrücklich.
+    codeArt: ziel.codeArt ?? 'auto',
     chargeId: ziel.chargeId ?? null,
     personId: ziel.personId ?? null,
     // Nur gesetzt, wenn zur Nummer mehrere Teile gehören und die Wahl schon
