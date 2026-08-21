@@ -28,6 +28,7 @@ export const WaescheTab: React.FC<Props> = ({
   const [busy, setBusy] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
+  const [abgewaehlt, setAbgewaehlt] = useState<{ chargeId: number; ids: number[] } | null>(null);
 
   const offene = chargen.filter(c => c.status !== 'abgeschlossen');
   const charge = chargen.find(c => c.id === gewaehlt) ?? offene[0] ?? chargen[0] ?? null;
@@ -47,15 +48,37 @@ export const WaescheTab: React.FC<Props> = ({
     }
   };
 
+  // Abgewählt statt ausgewählt: Der Normalfall ist, dass alles zurückkommt.
+  // Ein Teil, das jemand später noch in die Charge legt, ist damit automatisch
+  // dabei, ohne dass es erst angehakt werden muss.
+  const abwahl = abgewaehlt?.chargeId === charge?.id ? abgewaehlt.ids : [];
+  const zurueckIds = charge ? charge.teile.filter(t => !abwahl.includes(t.id)).map(t => t.id) : [];
+  const alleZurueck = charge ? zurueckIds.length === charge.teile.length : true;
+
+  const wechsleTeil = (teilId: number) => {
+    if (!charge) return;
+    const ids = abwahl.includes(teilId) ? abwahl.filter(i => i !== teilId) : [...abwahl, teilId];
+    setAbgewaehlt({ chargeId: charge.id, ids });
+  };
+
   const zurueckmelden = async (id: number) => {
-    if (!confirm('Charge zurückmelden? Bei allen Teilen wird der Waschzähler um 1 erhöht.')) return;
+    const frage = alleZurueck
+      ? 'Charge zurückmelden? Bei allen Teilen wird der Waschzähler um 1 erhöht.'
+      : `${zurueckIds.length} von ${charge?.teile.length} Teilen zurückmelden? `
+        + 'Nur bei diesen wird der Waschzähler erhöht, die übrigen bleiben in der Charge.';
+    if (!confirm(frage)) return;
+
     await fuehreAus(async () => {
-      const ergebnis = await meldeChargeZurueck(id);
+      const ergebnis = await meldeChargeZurueck(id, alleZurueck ? undefined : zurueckIds);
+      const rest = ergebnis.verbleibend > 0
+        ? ` ${ergebnis.verbleibend} ${ergebnis.verbleibend === 1 ? 'Teil bleibt' : 'Teile bleiben'} in der Charge.`
+        : '';
       setMeldung(
         ergebnis.ueberGrenze.length > 0
-          ? `${ergebnis.gezaehlt} Teile gezählt. Über der Höchstzahl: ${ergebnis.ueberGrenze.join(', ')}.`
-          : `${ergebnis.gezaehlt} Teile zurückgemeldet.`,
+          ? `${ergebnis.gezaehlt} Teile gezählt. Über der Höchstzahl: ${ergebnis.ueberGrenze.join(', ')}.${rest}`
+          : `${ergebnis.gezaehlt} Teile zurückgemeldet.${rest}`,
       );
+      setAbgewaehlt(null);
     });
   };
 
@@ -159,6 +182,7 @@ export const WaescheTab: React.FC<Props> = ({
               <table className={styles.table}>
                 <thead>
                   <tr>
+                    {charge.status !== 'abgeschlossen' && <th title="Kommt zurück">zurück</th>}
                     <th>Nummer</th><th>Teil</th><th>Träger</th><th>Wäschen</th>
                     <th>{charge.status === 'abgeschlossen' ? '' : 'Nach Rückgabe'}</th>
                     <th></th>
@@ -166,18 +190,30 @@ export const WaescheTab: React.FC<Props> = ({
                 </thead>
                 <tbody>
                   {charge.teile.map(teil => {
+                    const kommtZurueck = !abwahl.includes(teil.id);
                     const nachher = teil.waschzaehler + 1;
                     const reisst = teil.waschgrenze !== null && nachher > teil.waschgrenze;
                     return (
-                      <tr key={teil.id}>
+                      <tr key={teil.id} style={kommtZurueck ? undefined : { opacity: 0.5 }}>
+                        {charge.status !== 'abgeschlossen' && (
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={kommtZurueck}
+                              onChange={() => wechsleTeil(teil.id)}
+                              disabled={busy}
+                              aria-label={`${teil.nummer} kommt zurück`}
+                            />
+                          </td>
+                        )}
                         <td className={`${styles.mono} ${styles.klickbar}`} onClick={() => onTeil(teil.id)}>{teil.nummer}</td>
                         <td>{teil.typName}</td>
                         <td><TraegerBadge teil={teil} /></td>
                         <td className={styles.num}>
                           {teil.waschzaehler}{teil.waschgrenze !== null ? ` / ${teil.waschgrenze}` : ''}
                         </td>
-                        <td className={`${styles.num} ${reisst ? styles.stopText : ''}`}>
-                          {charge.status === 'abgeschlossen'
+                        <td className={`${styles.num} ${reisst && kommtZurueck ? styles.stopText : ''}`}>
+                          {charge.status === 'abgeschlossen' || !kommtZurueck
                             ? ''
                             : `${nachher}${teil.waschgrenze !== null ? ` / ${teil.waschgrenze}` : ''}${reisst ? ' · Grenze' : ''}`}
                         </td>
@@ -203,10 +239,22 @@ export const WaescheTab: React.FC<Props> = ({
 
           {charge.status !== 'abgeschlossen' && (
             <div className={styles.chargenFuss}>
-              {charge.teile.some(t => t.waschgrenze !== null && t.waschzaehler + 1 > t.waschgrenze) && (
+              {charge.teile.some(t =>
+                !abwahl.includes(t.id) && t.waschgrenze !== null && t.waschzaehler + 1 > t.waschgrenze,
+              ) && (
                 <div className={styles.hinweisBox}>
                   <i className="fas fa-triangle-exclamation" aria-hidden="true"></i>
                   <span>Mindestens ein Teil überschreitet mit dieser Wäsche die Höchstzahl – Ersatz einplanen.</span>
+                </div>
+              )}
+
+              {!alleZurueck && (
+                <div className={styles.hinweisBox}>
+                  <i className="fas fa-circle-info" aria-hidden="true"></i>
+                  <span>
+                    {charge.teile.length - zurueckIds.length} Teile sind abgehakt und bleiben in der Charge –
+                    ihr Waschzähler wird nicht erhöht. Die Charge bleibt offen, bis auch sie zurück sind.
+                  </span>
                 </div>
               )}
 
@@ -226,9 +274,12 @@ export const WaescheTab: React.FC<Props> = ({
                   className={styles.btnPrimary}
                   onClick={() => void zurueckmelden(charge.id)}
                   type="button"
-                  disabled={busy || charge.teile.length === 0}
+                  disabled={busy || zurueckIds.length === 0}
                 >
-                  <i className="fas fa-rotate-left" aria-hidden="true"></i> Zurück – Zähler +1
+                  <i className="fas fa-rotate-left" aria-hidden="true"></i>{' '}
+                  {alleZurueck
+                    ? 'Zurück – Zähler +1'
+                    : `${zurueckIds.length} von ${charge.teile.length} zurück – Zähler +1`}
                 </button>
                 <button
                   className={styles.btnDanger}

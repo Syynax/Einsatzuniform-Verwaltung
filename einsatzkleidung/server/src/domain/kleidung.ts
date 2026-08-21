@@ -232,6 +232,66 @@ export function brauchtAufmerksamkeit(teil: TeilMitDetails): boolean {
   return teil.status !== 'ausgesondert' && teil.hinweise.length > 0;
 }
 
+// --- Nachweis ------------------------------------------------------------
+
+export interface Stammdatenaenderung {
+  feld: string;
+  vorher: string;
+  nachher: string;
+}
+
+/**
+ * Felder, deren Änderung im Verlauf stehen muss.
+ *
+ * Standort und Notiz fehlen bewusst: Sie sagen nichts über den Zustand des
+ * Teils aus und würden den Verlauf mit Umräumaktionen zumüllen.
+ */
+const NACHWEIS_FELDER = [
+  { schluessel: 'nummer', text: 'Nummer' },
+  { schluessel: 'matrixCode', text: 'Matrixcode' },
+  { schluessel: 'groesse', text: 'Größe' },
+  { schluessel: 'hersteller', text: 'Hersteller' },
+  { schluessel: 'beschaffung', text: 'Beschaffung' },
+  { schluessel: 'waschzaehler', text: 'Waschzähler' },
+  { schluessel: 'letztePruefung', text: 'Letzte Prüfung' },
+] as const;
+
+const alsText = (wert: unknown): string =>
+  wert === null || wert === undefined || wert === '' ? '–' : String(wert);
+
+/**
+ * Was sich an den nachweisrelevanten Stammdaten geändert hat.
+ *
+ * Der Waschzähler und das Prüfdatum liessen sich früher über den
+ * Bearbeiten-Dialog spurlos überschreiben, während der eigene Endpunkt für den
+ * Waschzähler dieselbe Änderung sorgfältig protokollierte. Damit stand hinter
+ * jedem Nachweis ein Fragezeichen.
+ */
+export function stammdatenDiff(
+  alt: Kleidungsstueck,
+  neu: Kleidungsstueck,
+  typName: (id: number) => string = String,
+): Stammdatenaenderung[] {
+  const aenderungen: Stammdatenaenderung[] = [];
+
+  if (alt.typId !== neu.typId) {
+    aenderungen.push({ feld: 'Teiletyp', vorher: typName(alt.typId), nachher: typName(neu.typId) });
+  }
+
+  for (const { schluessel, text } of NACHWEIS_FELDER) {
+    if (alt[schluessel] !== neu[schluessel]) {
+      aenderungen.push({ feld: text, vorher: alsText(alt[schluessel]), nachher: alsText(neu[schluessel]) });
+    }
+  }
+
+  return aenderungen;
+}
+
+/** Einzeiler für den Verlauf: „Waschzähler 48 → 12, Größe 52 → 54". */
+export function aenderungsText(aenderungen: Stammdatenaenderung[]): string {
+  return aenderungen.map(a => `${a.feld} ${a.vorher} → ${a.nachher}`).join(', ');
+}
+
 // --- Chargen -------------------------------------------------------------
 
 /** Nächste freie Chargennummer im Format W-1, W-2 und so weiter. */

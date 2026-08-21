@@ -24,6 +24,7 @@ import { erzeugeSitzung, koppele, scanMelden, warteAufScans, beende } from '../s
 import type { AuthRequest } from '../auth';
 import { DATA_FILE } from '../config';
 import {
+  aenderungsText,
   auswertung as berechneAuswertung,
   brauchtAufmerksamkeit,
   mitDetails,
@@ -33,6 +34,7 @@ import {
   normalisiereMatrixCode,
   normalisiereNummer,
   pruefungFaellig,
+  stammdatenDiff,
 } from '../domain/kleidung';
 import {
   aktualisierePerson,
@@ -664,6 +666,11 @@ router.put('/teile/:id', [param('id').isInt({ min: 1 }), ...teilValidierung], as
         });
       }
 
+      // Stand vor der Änderung festhalten: Was sich an den nachweisrelevanten
+      // Feldern bewegt, muss in den Verlauf – sonst liesse sich ein
+      // Waschzähler oder ein Prüfdatum hier spurlos umschreiben.
+      const vorher: Kleidungsstueck = { ...teil };
+
       const letztePruefung = text(req.body.letztePruefung);
       Object.assign(teil, {
         nummer,
@@ -679,6 +686,19 @@ router.put('/teile/:id', [param('id').isInt({ min: 1 }), ...teilValidierung], as
         naechstePruefung: naechstePruefungAus(letztePruefung, typ),
         notiz: text(req.body.notiz),
       } satisfies Partial<Kleidungsstueck>);
+
+      const aenderungen = stammdatenDiff(vorher, teil, tid => data.typen.find(t => t.id === tid)?.name ?? `Typ ${tid}`);
+      if (aenderungen.length > 0) {
+        const zaehlerGeaendert = vorher.waschzaehler !== teil.waschzaehler;
+        protokolliere(data, {
+          teilId: id,
+          typ: 'korrektur',
+          detail: `Bearbeitet: ${aenderungsText(aenderungen)}`,
+          zaehlerVorher: zaehlerGeaendert ? vorher.waschzaehler : null,
+          zaehlerNachher: zaehlerGeaendert ? teil.waschzaehler : null,
+          benutzer: benutzerVon(req),
+        });
+      }
 
       await saveData(data);
       return alsDetail(data)(teil);
@@ -697,6 +717,18 @@ router.delete('/teile/:id', [param('id').isInt({ min: 1 }), handleValidation], a
       const teil = teilOderFehler(data, id);
       if (teil.chargeId !== null) {
         throw fehler(409, 'Das Teil steckt noch in einer Wäsche-Charge.');
+      }
+
+      // Löschen ist für die Fehlanlage gedacht – für ein Teil, das es so nie
+      // gab. Sobald etwas damit passiert ist, wäre das Löschen ein Entfernen
+      // von Belegen: Dafür gibt es das Aussondern, das die Historie behält.
+      const historie = data.vorgaenge.filter(v => v.teilId === id && v.typ !== 'anlage');
+      if (historie.length > 0) {
+        throw fehler(
+          409,
+          `Für ${teil.nummer} ${historie.length === 1 ? 'ist 1 Vorgang' : `sind ${historie.length} Vorgänge`} protokolliert. `
+          + 'Ein Teil mit Historie wird ausgesondert, nicht gelöscht – sonst verschwindet der Nachweis mit.',
+        );
       }
 
       data.teile = data.teile.filter(t => t.id !== id);
@@ -1123,16 +1155,36 @@ router.post('/chargen/:id/abgeben', [param('id').isInt({ min: 1 }), handleValida
 /**
  * Rückmeldung der Charge: erst hier zählen die Wäschen hoch. Vorher wäre der
  * Zähler falsch, sobald eine Charge doch nicht gewaschen wird.
+ *
+ * Ohne `teilIds` kommt die ganze Charge zurück. Mit `teilIds` nur die genannten
+ * Teile – der Normalfall beim Dienstleister, bei dem zwei Stück eine Woche
+ * länger brauchen. Vorher blieb dafür nur der grosse Knopf, der auch die noch
+ * nicht zurückgekommenen Teile hochzählte: verbrannte Waschzyklen, die nie
+ * stattgefunden haben, und daran hängt die Aussonderungsentscheidung.
  */
-router.post('/chargen/:id/zurueck', [param('id').isInt({ min: 1 }), handleValidation], async (req: Request, res: Response) => {
+router.post('/chargen/:id/zurueck', [
+  param('id').isInt({ min: 1 }),
+  body('teilIds').optional().isArray().withMessage('teilIds muss eine Liste sein'),
+  body('teilIds.*').optional().isInt({ min: 1 }),
+  handleValidation,
+], async (req: Request, res: Response) => {
   try {
     const ergebnis = await withFileLock(DATA_PATH, async () => {
       const data = await loadData();
       const charge = chargeOderFehler(data, Number(req.params.id));
       if (charge.status === 'abgeschlossen') throw fehler(409, `Charge ${charge.nummer} ist schon zurückgemeldet.`);
 
-      const teile = data.teile.filter(t => t.chargeId === charge.id);
-      if (teile.length === 0) throw fehler(409, 'Die Charge ist leer.');
+      const inCharge = data.teile.filter(t => t.chargeId === charge.id);
+      if (inCharge.length === 0) throw fehler(409, 'Die Charge ist leer.');
+
+      const gewaehlt = Array.isArray(req.body.teilIds)
+        ? (req.body.teilIds as unknown[]).map(Number).filter(Number.isFinite)
+        : null;
+
+      const teile = gewaehlt === null ? inCharge : inCharge.filter(t => gewaehlt.includes(t.id));
+      if (teile.length === 0) {
+        throw fehler(400, 'Keines der gewählten Teile liegt in dieser Charge.');
+      }
 
       const zeit = new Date().toISOString();
       const benutzer = benutzerVon(req);
@@ -1164,11 +1216,21 @@ router.post('/chargen/:id/zurueck', [param('id').isInt({ min: 1 }), handleValida
         }
       }
 
-      charge.status = 'abgeschlossen';
-      charge.zurueck = zeit;
+      // Solange noch Teile in der Charge liegen, bleibt sie offen – sonst
+      // stünde „zurück" an einer Charge, von der die Hälfte noch unterwegs ist.
+      const verbleibend = data.teile.filter(t => t.chargeId === charge.id).length;
+      if (verbleibend === 0) {
+        charge.status = 'abgeschlossen';
+        charge.zurueck = zeit;
+      }
 
       await saveData(data);
-      return { charge: chargeMitTeilen(data, charge), gezaehlt: teile.length, ueberGrenze };
+      return {
+        charge: chargeMitTeilen(data, charge),
+        gezaehlt: teile.length,
+        verbleibend,
+        ueberGrenze,
+      };
     });
     res.json(ergebnis);
   } catch (err) {

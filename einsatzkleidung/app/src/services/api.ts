@@ -312,8 +312,19 @@ export const gebeChargeAb = async (id: number): Promise<ChargeMitTeilen> => {
   return response.data;
 };
 
-export const meldeChargeZurueck = async (id: number): Promise<ChargeZurueckAntwort> => {
-  const response = await api.post<ChargeZurueckAntwort>(`/kleidung/chargen/${id}/zurueck`);
+/**
+ * Ohne `teilIds` kommt die ganze Charge zurück. Mit `teilIds` nur die
+ * genannten – beim Dienstleister brauchen einzelne Teile oft länger, und der
+ * Waschzähler darf nur bei dem hochgehen, was tatsächlich gewaschen wurde.
+ */
+export const meldeChargeZurueck = async (
+  id: number,
+  teilIds?: number[],
+): Promise<ChargeZurueckAntwort> => {
+  const response = await api.post<ChargeZurueckAntwort>(
+    `/kleidung/chargen/${id}/zurueck`,
+    teilIds ? { teilIds } : {},
+  );
   return response.data;
 };
 

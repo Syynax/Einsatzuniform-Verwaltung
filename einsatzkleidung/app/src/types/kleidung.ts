@@ -204,6 +204,8 @@ export interface TeilDetailAntwort {
 export interface ChargeZurueckAntwort {
   charge: ChargeMitTeilen;
   gezaehlt: number;
+  /** Wie viele Teile noch in der Charge liegen. Über 0 heisst: Charge bleibt offen. */
+  verbleibend: number;
   ueberGrenze: string[];
 }
 

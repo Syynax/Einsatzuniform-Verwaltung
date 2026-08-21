@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  aenderungsText,
   ampelVon,
   auswertung,
   brauchtAufmerksamkeit,
@@ -14,6 +15,7 @@ import {
   plusMonate,
   plusTage,
   pruefStatusVon,
+  stammdatenDiff,
   pruefungFaellig,
   verbleibendeWaeschen,
   warnschwelleVon,
@@ -333,4 +335,40 @@ test('nie geprüft ist genauso dringend wie überfällig', () => {
 
   // Grenze zuerst, dann die nie geprüfte, erst danach die blosse Warnung.
   assert.deepEqual(liste.map(t => t.id), [3, 2, 1]);
+});
+
+test('Stammdatendiff meldet nur nachweisrelevante Felder', () => {
+  const alt = teil({ waschzaehler: 48, groesse: '52', standort: 'Spind 12', notiz: 'alt' });
+  const neu = teil({ waschzaehler: 12, groesse: '54', standort: 'Spind 3', notiz: 'neu' });
+
+  const diff = stammdatenDiff(alt, neu);
+
+  // Standort und Notiz stehen bewusst nicht drin – sie sagen nichts über den
+  // Zustand des Teils aus.
+  assert.deepEqual(diff, [
+    { feld: 'Größe', vorher: '52', nachher: '54' },
+    { feld: 'Waschzähler', vorher: '48', nachher: '12' },
+  ]);
+});
+
+test('Stammdatendiff ist leer, wenn sich nichts geändert hat', () => {
+  assert.deepEqual(stammdatenDiff(teil(), teil()), []);
+});
+
+test('Stammdatendiff löst den Teiletyp über den Namen auf', () => {
+  const diff = stammdatenDiff(teil({ typId: 1 }), teil({ typId: 2 }), id => `Typ ${id}`);
+  assert.deepEqual(diff, [{ feld: 'Teiletyp', vorher: 'Typ 1', nachher: 'Typ 2' }]);
+});
+
+test('Stammdatendiff schreibt fehlende Werte als Gedankenstrich', () => {
+  const diff = stammdatenDiff(teil({ letztePruefung: null }), teil({ letztePruefung: '2026-08-01' }));
+  assert.deepEqual(diff, [{ feld: 'Letzte Prüfung', vorher: '–', nachher: '2026-08-01' }]);
+});
+
+test('Änderungstext liest sich als Einzeiler für den Verlauf', () => {
+  const text = aenderungsText([
+    { feld: 'Waschzähler', vorher: '48', nachher: '12' },
+    { feld: 'Größe', vorher: '52', nachher: '54' },
+  ]);
+  assert.equal(text, 'Waschzähler 48 → 12, Größe 52 → 54');
 });
