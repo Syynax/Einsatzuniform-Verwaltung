@@ -36,3 +36,9 @@ export const STATUS_TEXT: Record<TeilStatus, string> = {
   reparatur: 'Reparatur',
   ausgesondert: 'Ausgesondert',
 };
+
+/**
+ * Vorlaufzeit, ab der eine anstehende Prüfung gemeldet wird. Ohne Vorlauf
+ * meldet das Add-on nur noch Versäumnisse – der Termin soll aber planbar sein.
+ */
+export const PRUEF_VORWARN_TAGE = 30;

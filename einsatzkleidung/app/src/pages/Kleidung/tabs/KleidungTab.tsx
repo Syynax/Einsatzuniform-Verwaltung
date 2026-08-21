@@ -146,11 +146,13 @@ export const KleidungTab: React.FC<Props> = ({ teile, typen, onTeil, onNeu, onTy
                 <span className={styles.soft}>
                   {teil.chargeNummer
                     ? `Charge ${teil.chargeNummer}`
-                    : teil.naechstePruefung
-                      ? `Prüfung ${datum(teil.naechstePruefung)}`
-                      : teil.beschaffung
-                        ? `Beschafft ${monat(teil.beschaffung)}`
-                        : 'Keine Frist hinterlegt'}
+                    : teil.pruefStatus === 'nie'
+                      ? 'Prüfung nie eingetragen'
+                      : teil.naechstePruefung
+                        ? `Prüfung ${datum(teil.naechstePruefung)}`
+                        : teil.beschaffung
+                          ? `Beschafft ${monat(teil.beschaffung)}`
+                          : 'Keine Frist hinterlegt'}
                 </span>
                 {!teil.matrixCode && (
                   <span className={`${styles.badge} ${styles.bPool}`}>

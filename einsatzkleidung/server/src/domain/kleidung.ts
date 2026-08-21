@@ -4,12 +4,13 @@ import type {
   Charge,
   Kleidungsstueck,
   Person,
+  PruefStatus,
   TeilMitDetails,
   Teiletyp,
   Vorgang,
   WaescheAnlass,
 } from '../types/kleidung';
-import { ANLASS_TEXT, WAESCHE_ANLAESSE } from '../constants/kleidung';
+import { ANLASS_TEXT, PRUEF_VORWARN_TAGE, WAESCHE_ANLAESSE } from '../constants/kleidung';
 
 /**
  * Die Rechenregeln der Einsatzkleidung – bewusst ohne Express und ohne
@@ -94,10 +95,41 @@ export function plusMonate(datum: string, monate: number): string {
   return ziel.toISOString().slice(0, 10);
 }
 
+/** Datum plus n Tage, als YYYY-MM-DD. */
+export function plusTage(datum: string, tage: number): string {
+  const [jahr, monat, tag] = datum.split('-').map(Number);
+  return new Date(Date.UTC(jahr, monat - 1, tag + tage)).toISOString().slice(0, 10);
+}
+
 /** Nächster Prüftermin aus letzter Prüfung und Intervall. Null ohne Intervall. */
 export function naechstePruefungAus(letztePruefung: string | null, typ: Teiletyp): string | null {
   if (!letztePruefung || typ.pruefIntervallMonate === null) return null;
   return plusMonate(letztePruefung, typ.pruefIntervallMonate);
+}
+
+/**
+ * Prüfzustand eines Teils.
+ *
+ * `nie` ist der Grund, warum es diese Funktion überhaupt gibt: Ein Teil, für
+ * dessen Typ ein Prüfintervall hinterlegt ist, das aber noch nie geprüft wurde,
+ * hat kein `naechstePruefung` – und galt damit früher als unauffällig. Das ist
+ * bei Schutzausrüstung die gefährlichste Auskunft von allen, weil sie
+ * Entwarnung gibt, wo nie jemand hingesehen hat.
+ */
+export function pruefStatusVon(teil: Kleidungsstueck, typ: Teiletyp, heute: string): PruefStatus {
+  if (teil.status === 'ausgesondert') return 'ok';
+  // Ohne Intervall am Typ wird das Teil nicht wiederkehrend geprüft – Helme
+  // und Stiefel einer Wehr, die das nicht hinterlegt hat, sollen nicht
+  // dauerhaft rot leuchten.
+  if (typ.pruefIntervallMonate === null) return 'ok';
+
+  // Kein Termin trotz Intervall heisst: Es wurde nie eine Prüfung eingetragen.
+  // `naechstePruefung` entsteht ausschliesslich aus `letztePruefung`.
+  if (teil.naechstePruefung === null) return 'nie';
+
+  if (teil.naechstePruefung <= heute) return 'faellig';
+  if (teil.naechstePruefung <= plusTage(heute, PRUEF_VORWARN_TAGE)) return 'bald';
+  return 'ok';
 }
 
 export function pruefungFaellig(teil: Kleidungsstueck, heute: string): boolean {
@@ -137,6 +169,7 @@ export function mitDetails(teil: Kleidungsstueck, nach: Nachschlag): TeilMitDeta
 
   const ampel = ampelVon(teil, ersatzTyp);
   const faellig = pruefungFaellig(teil, nach.heute);
+  const pruefStatus = pruefStatusVon(teil, ersatzTyp, nach.heute);
   const verbleibend = verbleibendeWaeschen(teil, ersatzTyp);
 
   const hinweise: string[] = [];
@@ -148,7 +181,13 @@ export function mitDetails(teil: Kleidungsstueck, nach: Nachschlag): TeilMitDeta
     } else if (ampel === 'warnung' && verbleibend !== null) {
       hinweise.push(`Noch ${verbleibend} Wäsche${verbleibend === 1 ? '' : 'n'} bis zur Grenze`);
     }
-    if (faellig) hinweise.push(`Prüfung fällig seit ${teil.naechstePruefung}`);
+    if (pruefStatus === 'nie') {
+      hinweise.push('Prüfung nie eingetragen');
+    } else if (pruefStatus === 'faellig') {
+      hinweise.push(`Prüfung fällig seit ${teil.naechstePruefung}`);
+    } else if (pruefStatus === 'bald') {
+      hinweise.push(`Prüfung fällig am ${teil.naechstePruefung}`);
+    }
     if (teil.status === 'reparatur') hinweise.push('In Reparatur');
   }
 
@@ -165,20 +204,26 @@ export function mitDetails(teil: Kleidungsstueck, nach: Nachschlag): TeilMitDeta
     chargeNummer: charge?.nummer ?? null,
     hinweise,
     pruefungFaellig: faellig,
+    pruefStatus,
   };
 }
 
 /**
  * Reihenfolge der Liste Handlungsbedarf: erst was die Grenze gerissen hat,
- * dann fällige Prüfungen, dann alles mit Warnung.
+ * dann fällige und nie eingetragene Prüfungen, dann alles mit Warnung.
+ *
+ * `nie` steht gleichauf mit `faellig`: Beides heisst, dass an dem Teil eine
+ * Prüfung aussteht – im einen Fall seit einem bekannten Termin, im anderen
+ * seit jeher.
  */
 export function nachDringlichkeit(a: TeilMitDetails, b: TeilMitDetails): number {
   const rang = (t: TeilMitDetails): number => {
     if (t.ampel === 'grenze') return 0;
-    if (t.pruefungFaellig) return 1;
+    if (t.pruefungFaellig || t.pruefStatus === 'nie') return 1;
     if (t.ampel === 'warnung') return 2;
-    if (t.status === 'reparatur') return 3;
-    return 4;
+    if (t.pruefStatus === 'bald') return 3;
+    if (t.status === 'reparatur') return 4;
+    return 5;
   };
   return rang(a) - rang(b) || a.nummer.localeCompare(b.nummer);
 }

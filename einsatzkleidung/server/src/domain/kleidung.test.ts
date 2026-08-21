@@ -12,6 +12,8 @@ import {
   normalisiereMatrixCode,
   normalisiereNummer,
   plusMonate,
+  plusTage,
+  pruefStatusVon,
   pruefungFaellig,
   verbleibendeWaeschen,
   warnschwelleVon,
@@ -169,6 +171,12 @@ const chargen: Charge[] = [
 ];
 const nachschlag = { typen: [typ()], personen, chargen, heute: '2026-08-20' };
 
+/**
+ * Ein Teil mit gepflegter Prüfung. Tests, die etwas anderes prüfen, sollen
+ * nicht am Hinweis "Prüfung nie eingetragen" hängen bleiben.
+ */
+const GEPRUEFT = { letztePruefung: '2026-06-01', naechstePruefung: '2027-06-01' };
+
 test('Ein Teil wird um Typ, Träger und Charge ergänzt', () => {
   const detail = mitDetails(teil({ personId: 1, chargeId: 7, status: 'waesche' }), nachschlag);
   assert.equal(detail.typName, 'Überjacke HuPF Teil 1');
@@ -185,7 +193,7 @@ test('Ein Teil mit gelöschtem Typ verschwindet nicht', () => {
 });
 
 test('Hinweise nennen Waschgrenze, Prüfung und Reparatur', () => {
-  const nahAnDerGrenze = mitDetails(teil({ waschzaehler: 48 }), nachschlag);
+  const nahAnDerGrenze = mitDetails(teil({ waschzaehler: 48, ...GEPRUEFT }), nachschlag);
   assert.deepEqual(nahAnDerGrenze.hinweise, ['Noch 2 Wäschen bis zur Grenze']);
 
   const ueberGrenze = mitDetails(teil({ waschzaehler: 50, naechstePruefung: '2026-08-01' }), nachschlag);
@@ -194,7 +202,7 @@ test('Hinweise nennen Waschgrenze, Prüfung und Reparatur', () => {
     'Prüfung fällig seit 2026-08-01',
   ]);
 
-  const inReparatur = mitDetails(teil({ status: 'reparatur' }), nachschlag);
+  const inReparatur = mitDetails(teil({ status: 'reparatur', ...GEPRUEFT }), nachschlag);
   assert.deepEqual(inReparatur.hinweise, ['In Reparatur']);
 
   const ausgesondert = mitDetails(teil({ status: 'ausgesondert', waschzaehler: 60 }), nachschlag);
@@ -203,16 +211,16 @@ test('Hinweise nennen Waschgrenze, Prüfung und Reparatur', () => {
 });
 
 test('Einzahl bei genau einer verbleibenden Wäsche', () => {
-  const detail = mitDetails(teil({ waschzaehler: 49 }), nachschlag);
+  const detail = mitDetails(teil({ waschzaehler: 49, ...GEPRUEFT }), nachschlag);
   assert.deepEqual(detail.hinweise, ['Noch 1 Wäsche bis zur Grenze']);
 });
 
 test('Handlungsbedarf sortiert Grenze vor Prüfung vor Warnung', () => {
   const liste = [
-    mitDetails(teil({ id: 1, nummer: '0001-01/20', waschzaehler: 45 }), nachschlag),
-    mitDetails(teil({ id: 2, nummer: '0002-01/20', waschzaehler: 50 }), nachschlag),
+    mitDetails(teil({ id: 1, nummer: '0001-01/20', waschzaehler: 45, ...GEPRUEFT }), nachschlag),
+    mitDetails(teil({ id: 2, nummer: '0002-01/20', waschzaehler: 50, ...GEPRUEFT }), nachschlag),
     mitDetails(teil({ id: 3, nummer: '0003-01/20', naechstePruefung: '2026-01-01' }), nachschlag),
-    mitDetails(teil({ id: 4, nummer: '0004-01/20', status: 'reparatur' }), nachschlag),
+    mitDetails(teil({ id: 4, nummer: '0004-01/20', status: 'reparatur', ...GEPRUEFT }), nachschlag),
   ].sort(nachDringlichkeit);
 
   assert.deepEqual(liste.map(t => t.id), [2, 3, 1, 4]);
@@ -267,4 +275,62 @@ test('Auswertung zählt nur Wäschen, nicht andere Vorgänge', () => {
   assert.deepEqual(ergebnis.waeschenProTyp, [
     { typName: 'Überjacke HuPF Teil 1', waeschen: 60, teile: 2, schnitt: 30 },
   ]);
+});
+
+test('plusTage rechnet über Monats- und Jahresgrenzen', () => {
+  assert.equal(plusTage('2026-08-20', 30), '2026-09-19');
+  assert.equal(plusTage('2026-12-20', 30), '2027-01-19');
+  assert.equal(plusTage('2028-02-28', 1), '2028-02-29');
+});
+
+test('nie eingetragene Prüfung ist ein eigener Zustand, nicht "in Ordnung"', () => {
+  // Der Kern: Intervall am Typ hinterlegt, aber am Teil steht keine Prüfung.
+  const nie = teil({ letztePruefung: null, naechstePruefung: null });
+  assert.equal(pruefStatusVon(nie, typ(), '2026-08-20'), 'nie');
+
+  const details = mitDetails(nie, nachschlag);
+  assert.deepEqual(details.hinweise, ['Prüfung nie eingetragen']);
+  assert.equal(brauchtAufmerksamkeit(details), true);
+});
+
+test('ohne Prüfintervall am Typ bleibt alles unauffällig', () => {
+  const ohneIntervall = typ({ pruefIntervallMonate: null });
+  assert.equal(pruefStatusVon(teil(), ohneIntervall, '2026-08-20'), 'ok');
+});
+
+test('Prüfung meldet sich mit Vorlauf, nicht erst nach Ablauf', () => {
+  const heute = '2026-08-20';
+  const stufe = (naechstePruefung: string) =>
+    pruefStatusVon(teil({ letztePruefung: '2025-08-01', naechstePruefung }), typ(), heute);
+
+  assert.equal(stufe('2026-08-19'), 'faellig');
+  assert.equal(stufe('2026-08-20'), 'faellig');
+  assert.equal(stufe('2026-08-21'), 'bald');
+  assert.equal(stufe('2026-09-19'), 'bald', 'genau am Rand des Vorlaufs');
+  assert.equal(stufe('2026-09-20'), 'ok', 'einen Tag später ist noch nichts zu tun');
+});
+
+test('ausgesondert wird nicht mehr zur Prüfung gemeldet', () => {
+  const alt = teil({ status: 'ausgesondert', letztePruefung: null, naechstePruefung: null });
+  assert.equal(pruefStatusVon(alt, typ(), '2026-08-20'), 'ok');
+});
+
+test('anstehende Prüfung nennt den Termin statt nur zu warnen', () => {
+  const bald = mitDetails(
+    teil({ letztePruefung: '2025-09-01', naechstePruefung: '2026-09-01' }),
+    nachschlag,
+  );
+  assert.deepEqual(bald.hinweise, ['Prüfung fällig am 2026-09-01']);
+  assert.equal(bald.pruefStatus, 'bald');
+});
+
+test('nie geprüft ist genauso dringend wie überfällig', () => {
+  const liste = [
+    mitDetails(teil({ id: 1, nummer: '0001-01/20', ...GEPRUEFT, waschzaehler: 45 }), nachschlag),
+    mitDetails(teil({ id: 2, nummer: '0002-01/20', letztePruefung: null, naechstePruefung: null }), nachschlag),
+    mitDetails(teil({ id: 3, nummer: '0003-01/20', ...GEPRUEFT, waschzaehler: 50 }), nachschlag),
+  ].sort(nachDringlichkeit);
+
+  // Grenze zuerst, dann die nie geprüfte, erst danach die blosse Warnung.
+  assert.deepEqual(liste.map(t => t.id), [3, 2, 1]);
 });

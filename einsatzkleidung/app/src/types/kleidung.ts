@@ -10,6 +10,9 @@ export type WaescheAnlass = 'atemschutz' | 'uebung' | 'verschmutzung' | 'turnus'
 export type ChargeStatus = 'erfasst' | 'unterwegs' | 'abgeschlossen';
 export type Ampel = 'ok' | 'warnung' | 'grenze';
 
+/** Prüfzustand. `nie`: Intervall am Typ hinterlegt, aber nie eine Prüfung eingetragen. */
+export type PruefStatus = 'ok' | 'bald' | 'faellig' | 'nie';
+
 export type VorgangTyp =
   | 'anlage'
   | 'waesche'
@@ -90,6 +93,7 @@ export interface TeilMitDetails extends Kleidungsstueck {
   chargeNummer: string | null;
   hinweise: string[];
   pruefungFaellig: boolean;
+  pruefStatus: PruefStatus;
 }
 
 export interface TeilFormData {
@@ -164,8 +168,11 @@ export interface Uebersicht {
   inWaesche: number;
   waschgrenzeNah: number;
   pruefungFaellig: number;
+  pruefungBald: number;
+  pruefungNie: number;
   imPool: number;
   handlungsbedarf: TeilMitDetails[];
+  handlungsbedarfGesamt: number;
   offeneChargen: ChargeMitTeilen[];
   letzteVorgaenge: VorgangMitNamen[];
 }

@@ -67,7 +67,13 @@ export const WaschBalken: React.FC<{ teil: TeilMitDetails; gross?: boolean }> = 
 /** Randfarbe einer Teilekachel nach Dringlichkeit. */
 export const kachelKlasse = (teil: TeilMitDetails): string => {
   if (teil.status === 'ausgesondert') return styles.teilCardAus;
-  if (teil.ampel === 'grenze') return styles.teilCardStop;
-  if (teil.ampel === 'warnung' || teil.pruefungFaellig || teil.status === 'reparatur') return styles.teilCardWarn;
+  // Überfällig und nie eingetragen sind gleich ernst: In beiden Fällen ist am
+  // Teil eine Prüfung offen.
+  if (teil.ampel === 'grenze' || teil.pruefStatus === 'faellig' || teil.pruefStatus === 'nie') {
+    return styles.teilCardStop;
+  }
+  if (teil.ampel === 'warnung' || teil.pruefStatus === 'bald' || teil.status === 'reparatur') {
+    return styles.teilCardWarn;
+  }
   return '';
 };

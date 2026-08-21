@@ -10,7 +10,13 @@ interface Props {
   onWaesche: () => void;
 }
 
-export const UebersichtTab: React.FC<Props> = ({ uebersicht, onTeil, onScannen, onWaesche }) => (
+export const UebersichtTab: React.FC<Props> = ({ uebersicht, onTeil, onScannen, onWaesche }) => {
+  // Nie eingetragen zählt zu den fälligen: In beiden Fällen steht eine Prüfung
+  // aus, und eine getrennte Kachel dafür würde die Zahl kleiner aussehen lassen,
+  // als sie ist.
+  const pruefungOffen = uebersicht.pruefungFaellig + uebersicht.pruefungNie;
+
+  return (
   <>
     <div className={styles.statusBar}>
       <div className={styles.statusPill}>
@@ -34,11 +40,18 @@ export const UebersichtTab: React.FC<Props> = ({ uebersicht, onTeil, onScannen, 
           <span className={styles.statusPillLabel}>an der Waschgrenze</span>
         </span>
       </div>
-      <div className={`${styles.statusPill} ${uebersicht.pruefungFaellig > 0 ? styles.statusPillStop : ''}`}>
+      <div className={`${styles.statusPill} ${pruefungOffen > 0 ? styles.statusPillStop : ''}`}>
         <i className="fas fa-clipboard-check" aria-hidden="true"></i>
         <span className={styles.statusPillText}>
-          <span className={styles.statusPillValue}>{uebersicht.pruefungFaellig}</span>
+          <span className={styles.statusPillValue}>{pruefungOffen}</span>
           <span className={styles.statusPillLabel}>Prüfung fällig</span>
+        </span>
+      </div>
+      <div className={`${styles.statusPill} ${uebersicht.pruefungBald > 0 ? styles.statusPillWarn : ''}`}>
+        <i className="fas fa-calendar-day" aria-hidden="true"></i>
+        <span className={styles.statusPillText}>
+          <span className={styles.statusPillValue}>{uebersicht.pruefungBald}</span>
+          <span className={styles.statusPillLabel}>Prüfung in 30 Tagen</span>
         </span>
       </div>
       <div className={styles.statusPill}>
@@ -50,12 +63,27 @@ export const UebersichtTab: React.FC<Props> = ({ uebersicht, onTeil, onScannen, 
       </div>
     </div>
 
+    {uebersicht.pruefungNie > 0 && (
+      <div className={styles.hinweisBox}>
+        <i className="fas fa-circle-info" aria-hidden="true"></i>
+        <span>
+          Bei {uebersicht.pruefungNie} {uebersicht.pruefungNie === 1 ? 'Teil steht' : 'Teilen steht'} noch
+          keine Prüfung – sie zählen als fällig, bis eine eingetragen ist. Nach dem Umstieg von einer
+          Papierliste ist das normal: Alte Prüftermine im Teil nachtragen, dann verschwindet der Hinweis.
+        </span>
+      </div>
+    )}
+
     <div className={styles.zweiSpalten}>
       <section className={styles.card}>
         <div className={styles.cardHead}>
           <h3 className={styles.cardTitle}>Handlungsbedarf</h3>
           <span className={styles.soft}>
-            {uebersicht.handlungsbedarf.length === 0 ? 'nichts offen' : `${uebersicht.handlungsbedarf.length} Teile`}
+            {uebersicht.handlungsbedarfGesamt === 0
+              ? 'nichts offen'
+              : uebersicht.handlungsbedarfGesamt > uebersicht.handlungsbedarf.length
+                ? `${uebersicht.handlungsbedarf.length} von ${uebersicht.handlungsbedarfGesamt} Teilen`
+                : `${uebersicht.handlungsbedarfGesamt} Teile`}
           </span>
         </div>
 
@@ -82,7 +110,13 @@ export const UebersichtTab: React.FC<Props> = ({ uebersicht, onTeil, onScannen, 
                       {teil.waschbar ? `${teil.waschzaehler}${teil.waschgrenze !== null ? ` / ${teil.waschgrenze}` : ''}` : '–'}
                     </td>
                     <td>
-                      <span className={`${styles.badge} ${teil.ampel === 'grenze' ? styles.bStop : styles.bWarn}`}>
+                      <span
+                        className={`${styles.badge} ${
+                          teil.ampel === 'grenze' || teil.pruefStatus === 'faellig' || teil.pruefStatus === 'nie'
+                            ? styles.bStop
+                            : styles.bWarn
+                        }`}
+                      >
                         {teil.hinweise[0]}
                       </span>
                     </td>
@@ -174,4 +208,5 @@ export const UebersichtTab: React.FC<Props> = ({ uebersicht, onTeil, onScannen, 
       )}
     </section>
   </>
-);
+  );
+};

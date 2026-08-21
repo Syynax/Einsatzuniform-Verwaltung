@@ -1446,9 +1446,12 @@ router.get('/uebersicht', async (_req: Request, res: Response) => {
       teileGesamt: aktiv.length,
       inWaesche: aktiv.filter(t => t.status === 'waesche').length,
       waschgrenzeNah: aktiv.filter(t => t.ampel !== 'ok').length,
-      pruefungFaellig: data.teile.filter(t => pruefungFaellig(t, tag)).length,
+      pruefungFaellig: aktiv.filter(t => t.pruefStatus === 'faellig').length,
+      pruefungBald: aktiv.filter(t => t.pruefStatus === 'bald').length,
+      pruefungNie: aktiv.filter(t => t.pruefStatus === 'nie').length,
       imPool: aktiv.filter(t => t.personId === null).length,
       handlungsbedarf: aktiv.filter(brauchtAufmerksamkeit).sort(nachDringlichkeit).slice(0, 12),
+      handlungsbedarfGesamt: aktiv.filter(brauchtAufmerksamkeit).length,
       offeneChargen: data.chargen
         .filter(c => c.status !== 'abgeschlossen')
         .map(charge => chargeMitTeilen(data, charge))

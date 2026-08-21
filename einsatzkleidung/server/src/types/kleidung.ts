@@ -120,6 +120,12 @@ export interface KleidungData {
 /** Wie dringend das Teil Aufmerksamkeit braucht. */
 export type Ampel = 'ok' | 'warnung' | 'grenze';
 
+/**
+ * Prüfzustand. `nie` heisst: Für den Typ ist ein Prüfintervall hinterlegt,
+ * aber am Teil steht keine Prüfung – es wurde also noch nie eine eingetragen.
+ */
+export type PruefStatus = 'ok' | 'bald' | 'faellig' | 'nie';
+
 export interface TeilMitDetails extends Kleidungsstueck {
   typName: string;
   kategorie: TeileKategorie;
@@ -134,6 +140,7 @@ export interface TeilMitDetails extends Kleidungsstueck {
   /** Klartext, warum das Teil auffällt – leer, wenn alles in Ordnung ist. */
   hinweise: string[];
   pruefungFaellig: boolean;
+  pruefStatus: PruefStatus;
 }
 
 export interface ChargeMitTeilen extends Charge {
@@ -145,8 +152,14 @@ export interface Uebersicht {
   inWaesche: number;
   waschgrenzeNah: number;
   pruefungFaellig: number;
+  /** Prüfung steht in den nächsten Wochen an. */
+  pruefungBald: number;
+  /** Für den Typ gilt ein Intervall, am Teil steht aber keine Prüfung. */
+  pruefungNie: number;
   imPool: number;
   handlungsbedarf: TeilMitDetails[];
+  /** Wie viele es insgesamt sind – `handlungsbedarf` ist auf 12 gekürzt. */
+  handlungsbedarfGesamt: number;
   offeneChargen: ChargeMitTeilen[];
   letzteVorgaenge: VorgangMitNamen[];
 }
