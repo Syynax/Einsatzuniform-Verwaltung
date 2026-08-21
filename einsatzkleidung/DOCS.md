@@ -13,8 +13,8 @@ aber genauso für die übrige Einsatzkleidung.
 | **Übersicht** | Was ansteht: Teile an der Waschgrenze, fällige Prüfungen, offene Reparaturen, laufende Wäsche und die letzten Vorgänge |
 | **Kleidung** | Alle Teile als Kacheln mit Waschzähler-Ampel, Filter nach Typ und Status, Volltextsuche über Nummer, Typ und Träger |
 | **Scannen** | Nummerncode (`XXXX-XX/XX`) und Matrixcode – wahlweise mit der Kamera, getippt oder über ein gekoppeltes Handy |
+| **Wäsche** | Chargen: Teile einsammeln, abgeben, zurückmelden. Erst die Rückmeldung zählt die Waschzähler hoch |
 | **Personen** | Einsatzkräfte mit ihrer Ausstattung, Atemschutz-Kennzeichnung und dem, was in der Sollausstattung fehlt. Anlegen einzeln oder als CSV-Import |
-| **Personen** | Einsatzkräfte mit ihrer Ausstattung, Atemschutz-Kennzeichnung und dem, was in der Sollausstattung fehlt |
 | **Auswertung** | Wäschen pro Monat, nach Anlass, Belastung je Teiletyp und der komplette Verlauf |
 
 Dazu:
